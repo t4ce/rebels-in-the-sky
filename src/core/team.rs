@@ -1,7 +1,7 @@
 use super::*;
 use crate::{
     core::{constants::MAX_CREW_SIZE, utils::is_default},
-    game_engine::{tactic::Tactic, types::EnginePlayer, Tournament, TournamentId, TournamentState},
+    game_engine::{tactic::Tactic, types::*, Tournament, TournamentId, TournamentState},
     network::{challenge::Challenge, trade::Trade},
     types::*,
 };
@@ -68,7 +68,11 @@ pub struct Team {
     #[serde(default)]
     pub asteroid_ids: Vec<PlanetId>,
     pub current_location: TeamLocation,
+    #[serde(skip_serializing_if = "is_default")]
+    #[serde(default)]
     pub peer_id: Option<PeerId>,
+    #[serde(skip_serializing_if = "is_default")]
+    #[serde(default)]
     pub current_game: Option<GameId>,
     #[serde(skip_serializing_if = "is_default")]
     #[serde(default)]
@@ -83,7 +87,12 @@ pub struct Team {
     #[serde(default)]
     pub network_game_rating: GameRating,
     pub game_tactic: Tactic,
-    pub training_focus: Option<TrainingFocus>,
+    #[serde(skip_serializing_if = "is_default")]
+    #[serde(default)]
+    pub substitution_tendency: SubstitutionTendency,
+    #[serde(skip_serializing_if = "is_default")]
+    #[serde(default)]
+    pub game_position_fluidity: GamePositionFluidity,
     #[serde(skip)]
     pub sent_trades: HashMap<(PlayerId, PlayerId), Trade>,
     #[serde(skip)]
@@ -824,7 +833,7 @@ impl Team {
         Ok(())
     }
 
-    fn can_change_team_settings(&self) -> AppResult<()> {
+    pub fn can_change_team_settings(&self) -> AppResult<()> {
         if self.current_game.is_some() {
             return Err(anyhow!("{} is playing", self.name));
         }
@@ -834,14 +843,6 @@ impl Team {
         }
 
         Ok(())
-    }
-
-    pub fn can_change_tactic(&self) -> AppResult<()> {
-        self.can_change_team_settings()
-    }
-
-    pub fn can_change_training_focus(&self) -> AppResult<()> {
-        self.can_change_team_settings()
     }
 
     pub fn can_trade_resource(
@@ -980,7 +981,7 @@ impl Team {
     }
 
     pub fn best_position_assignment(players: Vec<&Player>) -> Vec<PlayerId> {
-        if players.len() < MAX_GAME_POSITION as usize {
+        if players.len() < NUM_GAME_POSITIONS as usize {
             return players.iter().map(|&p| p.id).collect();
         }
 
@@ -989,7 +990,7 @@ impl Team {
             .iter()
             .take(MAX_CREW_SIZE) // For performance reasons, we only consider the first MAX_CREW_SIZE players by rating.
             .map(|&p| {
-                (0..MAX_GAME_POSITION)
+                (0..NUM_GAME_POSITIONS)
                     .map(|position| p.in_game_rating_at_position(position))
                     .collect::<Vec<f32>>()
             })
@@ -1001,7 +1002,7 @@ impl Team {
         // Iterate over all 5-permutations of the players. For each permutation assign a value equal to the sum of the ratings
         // when the player is assigned to the role corresponding to the index in the permutation.
         for perm in all_ratings.iter().permutations(5).enumerate() {
-            let team_value = (0..MAX_GAME_POSITION as usize)
+            let team_value = (0..NUM_GAME_POSITIONS as usize)
                 .map(|i| perm.1[i][i])
                 .sum::<f32>();
             if team_value > max_team_value {
@@ -1015,7 +1016,7 @@ impl Team {
             .collect::<Vec<Vec<usize>>>();
         let max_perm = &idx_perms[max_perm_index];
         let mut new_players: Vec<PlayerId> = max_perm.iter().map(|&i| players[i].id).collect();
-        assert!(new_players.len() == MAX_GAME_POSITION as usize);
+        assert!(new_players.len() == NUM_GAME_POSITIONS as usize);
         let mut bench = players
             .iter()
             .filter(|&p| !new_players.contains(&p.id))

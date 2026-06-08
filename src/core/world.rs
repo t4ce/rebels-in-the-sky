@@ -2,7 +2,7 @@ use super::constants::*;
 use super::jersey::{Jersey, JerseyStyle};
 use super::planet::{Planet, PlanetType};
 use super::player::{Player, Trait};
-use super::position::{GamePosition, MAX_GAME_POSITION};
+use super::position::{GamePosition, NUM_GAME_POSITIONS};
 use super::resources::Resource;
 use super::role::CrewRole;
 use super::skill::{GameSkill, MAX_SKILL};
@@ -144,15 +144,15 @@ impl World {
         let number_free_pirates = planet.total_population();
         let mut position = 0 as GamePosition;
         let own_team_base_level = if let Ok(own_team) = self.get_own_team() {
-            own_team.reputation / 5.0
+            own_team.reputation / 7.0
         } else {
             0.0
         };
 
         for _ in 0..number_free_pirates {
-            let base_level = own_team_base_level + rng.random_range(0.0..4.0);
+            let base_level = own_team_base_level + rng.random_range(0.0..2.5);
             self.generate_random_player(rng, Some(position), planet, base_level)?;
-            position = (position + 1) % MAX_GAME_POSITION;
+            position = (position + 1) % NUM_GAME_POSITIONS;
         }
 
         Ok(())
@@ -198,7 +198,7 @@ impl World {
         self.teams.insert(team.id, team);
 
         let team_base_level = team_base_level.unwrap_or(rng.random_range(2..=14) as f32);
-        for position in 0..MAX_GAME_POSITION {
+        for position in 0..NUM_GAME_POSITIONS {
             let player_id =
                 self.generate_random_player(rng, Some(position), &planet, team_base_level)?;
             self.add_player_to_team(&player_id, &team_id)?;
@@ -1653,7 +1653,7 @@ impl World {
                         training_bonus *= TOURNAMENT_GAME_TRAINING_BONUS_MODIFIER;
                     }
 
-                    let training_focus = team.training_focus;
+                    let training_focus = player.training_focus;
                     player.update_skills_training(
                         stats.experience_at_position,
                         training_bonus,
@@ -2357,7 +2357,7 @@ impl World {
                 continue;
             }
 
-            if let Ok(pirates) = Self::get_team_players(&self.players, &team) {
+            if let Ok(pirates) = Self::get_team_players(&self.players, team) {
                 team.player_ids = Team::best_position_assignment(pirates);
             }
 
@@ -2454,7 +2454,7 @@ impl World {
                 assert!(candidates.len() <= 1);
                 // Check if weakest pirate is worse than best free pirate.
                 // If not, continue.
-                if let Ok(pirates) = Self::get_team_players(&self.players, &team) {
+                if let Ok(pirates) = Self::get_team_players(&self.players, team) {
                     let worst_pirate = *pirates
                         .sort_by_rating()
                         .last()
@@ -2512,36 +2512,39 @@ impl World {
             player.add_morale(MORALE_DECREASE_PER_LONG_TICK);
             player.reputation = (player.reputation + REPUTATION_DECREASE_PER_LONG_TICK).bound();
 
+            for p in 0..player.game_position_fitness.len() {
+                if let Some(value) = player.game_position_fitness.get_mut(p) {
+                    *value = (*value
+                        + player
+                            .game_position_fitness_training
+                            .get(p)
+                            .copied()
+                            .unwrap_or_default())
+                    .bound()
+                }
+            }
+
             for idx in 0..player.skills_training.len() {
                 // Reduce player skills. This is planned to counteract the effect of training by playing games.
                 // Age modifier:
                 //   Young: linear from 0.75 at birth to 1.0 at peak.
                 //   Old:   linear from 1.0 at peak to max_modifier at retirement.
-                //          Athletics (idx 0-3):  max 3.0
-                //          Off/Def/Tech (4-15):  max 2.0
-                //          Mental (16-19):       max 1.5
-                let relative_age = player.info.relative_age();
-                let age_modifier = if relative_age <= PEAK_PERFORMANCE_RELATIVE_AGE {
-                    0.75 + 0.25 * (relative_age / PEAK_PERFORMANCE_RELATIVE_AGE)
-                } else {
-                    let progress = (relative_age - PEAK_PERFORMANCE_RELATIVE_AGE)
-                        / (1.0 - PEAK_PERFORMANCE_RELATIVE_AGE);
-                    let max_modifier = if idx < 4 {
-                        3.0
-                    } else if idx > 15 {
-                        1.5
-                    } else {
-                        2.0
-                    };
-                    1.0 + progress * (max_modifier - 1.0)
-                };
+                //          Athletics (idx 0-3):  max 3.15
+                //          Mental (16-19):       max 1.55
+                //          Off/Def/Tech (4-15):  max 2.55
+                let age_modifier = player.age_modifier_to_skill_update(idx);
 
                 player.modify_skill(idx, SKILL_DECREMENT_PER_LONG_TICK * age_modifier.bound());
+                for idx in 0..NUM_GAME_POSITIONS as usize {
+                    player.game_position_fitness[idx] +=
+                        0.25 * SKILL_DECREMENT_PER_LONG_TICK * age_modifier.bound();
+                }
 
                 // Increase player skills from training
                 player.modify_skill(idx, player.skills_training[idx]);
             }
-            player.skills_training = [0.0; 20];
+            player.game_position_fitness_training = [Skill::default(); NUM_GAME_POSITIONS as usize];
+            player.skills_training = [Skill::default(); 20];
         }
     }
 
@@ -3022,11 +3025,11 @@ impl World {
         let occupied_planets: HashSet<PlanetId> = w
             .teams
             .values()
-            .filter_map(|team| match team.current_location {
-                TeamLocation::OnPlanet { planet_id } => Some(planet_id),
+            .map(|team| match team.current_location {
+                TeamLocation::OnPlanet { planet_id } => planet_id,
                 TeamLocation::Exploring { around, .. }
-                | TeamLocation::OnSpaceAdventure { around } => Some(around),
-                TeamLocation::Travelling { to, .. } => Some(to),
+                | TeamLocation::OnSpaceAdventure { around } => around,
+                TeamLocation::Travelling { to, .. } => to,
             })
             .collect();
         w.planets.retain(|_, planet| {

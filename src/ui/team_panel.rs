@@ -3,17 +3,16 @@ use super::clickable_list::ClickableListState;
 use super::gif_map::GifMap;
 use super::ui_callback::UiCallback;
 use super::ui_frame::UiFrame;
+use super::ui_screen::{render_help_block, UiTab};
 use super::widgets::{
     go_to_team_current_planet_button, render_challenge_button, render_spaceship_description,
 };
-use super::ui_screen::{render_help_block, UiTab};
 use super::{
     constants::*,
     traits::{Screen, SplitPanel},
     utils::img_to_lines,
     widgets::{default_block, selectable_list},
 };
-use ratatui::text::Line;
 use crate::core::constants::MIN_PLAYERS_PER_GAME;
 use crate::core::team::Team;
 use crate::image::spaceship::{SPACESHIP_IMAGE_HEIGHT, SPACESHIP_IMAGE_WIDTH};
@@ -34,14 +33,30 @@ use ratatui::crossterm;
 use ratatui::crossterm::event::KeyCode;
 use ratatui::layout::Margin;
 use ratatui::style::{Styled, Stylize};
+use ratatui::text::Line;
 use ratatui::{
     layout::{Alignment, Constraint, Layout},
     prelude::Rect,
     widgets::Paragraph,
 };
+use std::collections::HashMap;
 use std::fmt::Display;
+use std::sync::{LazyLock, Mutex};
 
 const IMG_FRAME_WIDTH: u16 = 80;
+
+static FLOOR_CACHE: LazyLock<Mutex<HashMap<u32, Vec<Line<'static>>>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
+fn floor_lines_for(width: u32) -> Vec<Line<'static>> {
+    let mut cache = FLOOR_CACHE
+        .lock()
+        .expect("floor cache mutex poisoned");
+    cache
+        .entry(width)
+        .or_insert_with(|| img_to_lines(&floor_from_size(width, 2)))
+        .clone()
+}
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub enum TeamView {
@@ -57,6 +72,14 @@ impl TeamView {
             Self::All => Self::OpenToChallenge,
             Self::OpenToChallenge => Self::Peers,
             Self::Peers => Self::All,
+        }
+    }
+
+    const fn previous(&self) -> Self {
+        match self {
+            Self::All => Self::Peers,
+            Self::OpenToChallenge => Self::All,
+            Self::Peers => Self::OpenToChallenge,
         }
     }
 
@@ -135,7 +158,7 @@ impl TeamListPanel {
             },
         )
         .bold()
-        .set_hotkey(ui_key::CYCLE_VIEW)
+        
         .set_hover_text("View all crews.");
 
         let mut filter_challenge_button = Button::new(
@@ -145,7 +168,7 @@ impl TeamListPanel {
             },
         )
         .bold()
-        .set_hotkey(ui_key::CYCLE_VIEW)
+        
         .set_hover_text("View all crews that can be currently challenged to a game.");
 
         let mut filter_peers_button = Button::new(
@@ -154,7 +177,7 @@ impl TeamListPanel {
                 view: TeamView::Peers,
             },
         ).bold()
-        .set_hotkey(ui_key::CYCLE_VIEW)
+        
         .set_hover_text(
             "View all crews received from the network (i.e. crews controlled by other players online)."
                 ,
@@ -226,9 +249,8 @@ impl TeamListPanel {
         ])
         .split(area);
 
-        let floor = floor_from_size(area.width as u32, 2);
         frame.render_widget(
-            Paragraph::new(img_to_lines(&floor)).centered(),
+            Paragraph::new(floor_lines_for(area.width as u32)).centered(),
             vertical_split[1].inner(Margin {
                 horizontal: 1,
                 vertical: 0,
@@ -291,9 +313,7 @@ impl TeamListPanel {
                 Paragraph::new(format!(
                     "{} {}",
                     (i as GamePosition).as_str(),
-                    (i as GamePosition)
-                        .player_rating(player.current_skill_array())
-                        .stars()
+                    player.position_rating(i as GamePosition).stars()
                 ))
                 .centered(),
                 player_rating_split[i + 1],
@@ -344,13 +364,12 @@ impl TeamListPanel {
             {
                 if let Some(player) = world.players.get(player_id) {
                     let info = format!("{}\n", player.info.short_name());
-                    let skills = player.current_skill_array();
-                    let best_role = GamePosition::best(skills);
+                    let best_role = player.best_position();
 
                     let role_info = format!(
                         "{:<2} {:<5}",
                         best_role.as_str(),
-                        best_role.player_rating(skills).stars()
+                        player.position_rating(best_role).stars()
                     );
                     let mut button = Button::new(
                         format!("{info}{role_info}"),
@@ -534,6 +553,11 @@ impl Screen for TeamListPanel {
                     view: self.view.next(),
                 });
             }
+            ui_key::CYCLE_VIEW_BACK => {
+                return Some(UiCallback::SetTeamPanelView {
+                    view: self.view.previous(),
+                });
+            }
             KeyCode::Enter => {
                 let player_id = self.selected_player_id;
                 return Some(UiCallback::GoToPlayer { player_id });
@@ -572,12 +596,7 @@ impl Screen for TeamListPanel {
                 Line::from(" are open and on the same planet as you."),
             ],
             vec![
-                (
-                    " Manage your own crew in ",
-                    "My Team",
-                    UiTab::MyTeam,
-                    ".",
-                ),
+                (" Manage your own crew in ", "My Team", UiTab::MyTeam, "."),
                 (
                     " To inspect individual players, browse ",
                     "Pirates",

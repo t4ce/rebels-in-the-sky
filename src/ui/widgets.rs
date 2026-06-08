@@ -25,7 +25,7 @@ use crate::{
     core::{
         constants::*,
         player::Player,
-        position::{GamePosition, GamePositionUtils, MAX_GAME_POSITION},
+        position::{GamePosition, GamePositionUtils, NUM_GAME_POSITIONS},
         resources::Resource,
         skill::{GameSkill, Rated, SKILL_NAMES},
         spaceship_upgrades::SpaceshipUpgradeTarget,
@@ -117,20 +117,17 @@ pub fn teleport_button<'a>(world: &World, planet_id: PlanetId) -> AppResult<Butt
         "Teleport".to_string()
     };
 
-    let mut teleport_button = Button::new(
-        button_label,
-        UiCallback::TravelToPlanet { planet_id },
-    )
-    .set_hover_text(format!(
-        "Travel instantaneously to {}{}",
-        planet.name,
-        if rum_cost == 0 {
-            String::new()
-        } else {
-            format!(" for {} Rum", rum_cost)
-        }
-    ))
-    .set_hotkey(ui_key::TRAVEL);
+    let mut teleport_button = Button::new(button_label, UiCallback::TravelToPlanet { planet_id })
+        .set_hover_text(format!(
+            "Travel instantaneously to {}{}",
+            planet.name,
+            if rum_cost == 0 {
+                String::new()
+            } else {
+                format!(" for {} Rum", rum_cost)
+            }
+        ))
+        .set_hotkey(ui_key::TRAVEL);
 
     if let Err(e) = own_team.can_travel_to_planet(planet, TELEPORT_TRAVEL_DURATION) {
         teleport_button.disable(Some(e.to_string()));
@@ -1626,13 +1623,8 @@ fn improvement_indicator<'a>(skill: f32, previous: f32) -> Span<'a> {
 fn format_player_skills(player: &'_ Player) -> Vec<Line<'_>> {
     let skills = player.current_skill_array();
     let mut text = vec![];
-    let mut roles = (0..MAX_GAME_POSITION)
-        .map(|i: GamePosition| {
-            (
-                i.as_str().to_string(),
-                i.player_rating(player.current_skill_array()),
-            )
-        })
+    let mut roles = (0..NUM_GAME_POSITIONS)
+        .map(|i: GamePosition| (i.as_str().to_string(), player.position_rating(i)))
         .collect::<Vec<(String, f32)>>();
     roles.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
 

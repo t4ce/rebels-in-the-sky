@@ -1,7 +1,7 @@
 use super::{
     constants::*,
     jersey::Jersey,
-    position::{GamePosition, GamePositionUtils, MAX_GAME_POSITION},
+    position::{GamePosition, GamePositionUtils, NUM_GAME_POSITIONS},
     resources::Resource,
     role::CrewRole,
     skill::*,
@@ -17,6 +17,7 @@ use crate::{
 };
 use anyhow::anyhow;
 
+use itertools::Itertools;
 use libp2p::PeerId;
 use rand::{
     seq::{IndexedRandom, IteratorRandom},
@@ -59,8 +60,12 @@ pub struct Player {
     pub skills_training: [Skill; 20],
     pub previous_skills: [Skill; 20], // This is for displaying purposes to show the skills that were recently modified
     // pub skills_potential: [Skill; 20], // Each skill has a separate potential. For retrocompatibility reasons, we allow this array to be all zeros, in which case we initialize it during deserialization.
+    pub game_position_fitness: [Skill; NUM_GAME_POSITIONS as usize],
+    pub game_position_fitness_training: [Skill; NUM_GAME_POSITIONS as usize],
+    pub training_focus: Option<TrainingFocus>,
     pub tiredness: Skill,
     pub morale: Skill,
+    pub drunkenness: Skill,
     pub historical_stats: GameStats,
     build_data: PlayerBuildData, // Intermediate state used to build the random player. Not serialized
 }
@@ -85,8 +90,12 @@ impl Default for Player {
             current_location: PlayerLocation::default(),
             skills_training: [Skill::default(); 20],
             previous_skills: [Skill::default(); 20],
+            game_position_fitness: [Skill::default(); NUM_GAME_POSITIONS as usize],
+            game_position_fitness_training: [Skill::default(); NUM_GAME_POSITIONS as usize],
+            training_focus: None,
             tiredness: Skill::default(),
             morale: Skill::default(),
+            drunkenness: Skill::default(),
             historical_stats: GameStats::default(),
             build_data: PlayerBuildData::default(),
         }
@@ -99,9 +108,8 @@ impl Serialize for Player {
         // and serialize them in a vector which is then deserialized
         // into the corresponding fields
         let compact_skills = self.current_skill_array().to_vec();
-        let mut state = serializer.serialize_struct("Player", 17)?;
+        let mut state = serializer.serialize_struct("Player", 18)?;
         state.serialize_field("id", &self.id)?;
-
         state.serialize_field("peer_id", &self.peer_id)?;
         state.serialize_field("version", &self.version)?;
         state.serialize_field("info", &self.info)?;
@@ -115,7 +123,14 @@ impl Serialize for Player {
         state.serialize_field("skills_training", &self.skills_training)?;
         state.serialize_field("tiredness", &self.tiredness)?;
         state.serialize_field("morale", &self.morale)?;
+        state.serialize_field("drunkenness", &self.drunkenness)?;
         state.serialize_field("compact_skills", &compact_skills)?;
+        state.serialize_field("game_position_fitness", &self.game_position_fitness)?;
+        state.serialize_field(
+            "game_position_fitness_training",
+            &self.game_position_fitness_training,
+        )?;
+        state.serialize_field("training_focus", &self.training_focus)?;
         state.serialize_field("historical_stats", &self.historical_stats)?;
         state.end()
     }
@@ -139,8 +154,12 @@ impl<'de> Deserialize<'de> for Player {
             CurrentLocation,
             PreviousSkills,
             SkillsTraining,
+            GamePositionFitness,
+            GamePositionFitnessTraining,
+            TrainingFocus,
             Tiredness,
             Morale,
+            Drunkenness,
             CompactSkills,
             HistoricalStats,
         }
@@ -173,8 +192,14 @@ impl<'de> Deserialize<'de> for Player {
                             "current_location" => Ok(Field::CurrentLocation),
                             "previous_skills" => Ok(Field::PreviousSkills),
                             "skills_training" => Ok(Field::SkillsTraining),
+                            "game_position_fitness" => Ok(Field::GamePositionFitness),
+                            "game_position_fitness_training" => {
+                                Ok(Field::GamePositionFitnessTraining)
+                            }
+                            "training_focus" => Ok(Field::TrainingFocus),
                             "tiredness" => Ok(Field::Tiredness),
                             "morale" => Ok(Field::Morale),
+                            "drunkenness" => Ok(Field::Drunkenness),
                             "compact_skills" => Ok(Field::CompactSkills),
                             "historical_stats" => Ok(Field::HistoricalStats),
                             _ => Err(serde::de::Error::unknown_field(value, FIELDS)),
@@ -195,116 +220,6 @@ impl<'de> Deserialize<'de> for Player {
                 formatter.write_str("struct Player")
             }
 
-            fn visit_seq<V>(self, mut seq: V) -> Result<Player, V::Error>
-            where
-                V: serde::de::SeqAccess<'de>,
-            {
-                let id = seq
-                    .next_element()?
-                    .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
-                let peer_id = seq
-                    .next_element()?
-                    .ok_or_else(|| serde::de::Error::invalid_length(1, &self))?;
-                let version = seq
-                    .next_element()?
-                    .ok_or_else(|| serde::de::Error::invalid_length(2, &self))?;
-                let info = seq
-                    .next_element()?
-                    .ok_or_else(|| serde::de::Error::invalid_length(3, &self))?;
-                let team = seq
-                    .next_element()?
-                    .ok_or_else(|| serde::de::Error::invalid_length(4, &self))?;
-                let special_trait = seq
-                    .next_element()?
-                    .ok_or_else(|| serde::de::Error::invalid_length(5, &self))?;
-                let reputation = seq
-                    .next_element()?
-                    .ok_or_else(|| serde::de::Error::invalid_length(6, &self))?;
-                let potential = seq
-                    .next_element()?
-                    .ok_or_else(|| serde::de::Error::invalid_length(7, &self))?;
-                let image = seq
-                    .next_element()?
-                    .ok_or_else(|| serde::de::Error::invalid_length(8, &self))?;
-                let current_location = seq
-                    .next_element()?
-                    .ok_or_else(|| serde::de::Error::invalid_length(9, &self))?;
-                let previous_skills = seq
-                    .next_element()?
-                    .ok_or_else(|| serde::de::Error::invalid_length(10, &self))?;
-                let skills_training = seq
-                    .next_element()?
-                    .ok_or_else(|| serde::de::Error::invalid_length(11, &self))?;
-                let tiredness = seq
-                    .next_element()?
-                    .ok_or_else(|| serde::de::Error::invalid_length(12, &self))?;
-                let morale = seq
-                    .next_element()?
-                    .ok_or_else(|| serde::de::Error::invalid_length(13, &self))?;
-                let compact_skills: Vec<Skill> = seq
-                    .next_element()?
-                    .ok_or_else(|| serde::de::Error::invalid_length(14, &self))?;
-                let historical_stats = seq.next_element()?.unwrap_or_default();
-
-                let mut player = Player {
-                    id,
-
-                    peer_id,
-                    version,
-                    info,
-                    team,
-                    special_trait,
-                    reputation,
-                    potential,
-                    athletics: Athletics::default(),
-                    offense: Offense::default(),
-                    defense: Defense::default(),
-                    technical: Technical::default(),
-                    mental: Mental::default(),
-                    image,
-                    current_location,
-                    skills_training,
-                    previous_skills,
-                    tiredness,
-                    morale,
-                    historical_stats,
-                    build_data: PlayerBuildData::default(),
-                };
-
-                player.athletics = Athletics {
-                    quickness: compact_skills[0],
-                    vertical: compact_skills[1],
-                    strength: compact_skills[2],
-                    stamina: compact_skills[3],
-                };
-                player.offense = Offense {
-                    brawl: compact_skills[4],
-                    close_range: compact_skills[5],
-                    medium_range: compact_skills[6],
-                    long_range: compact_skills[7],
-                };
-                player.defense = Defense {
-                    steal: compact_skills[8],
-                    block: compact_skills[9],
-                    perimeter_defense: compact_skills[10],
-                    interior_defense: compact_skills[11],
-                };
-                player.technical = Technical {
-                    passing: compact_skills[12],
-                    ball_handling: compact_skills[13],
-                    post_moves: compact_skills[14],
-                    rebounds: compact_skills[15],
-                };
-                player.mental = Mental {
-                    vision: compact_skills[16],
-                    aggression: compact_skills[17],
-                    intuition: compact_skills[18],
-                    charisma: compact_skills[19],
-                };
-
-                Ok(player)
-            }
-
             fn visit_map<V>(self, mut map: V) -> Result<Player, V::Error>
             where
                 V: serde::de::MapAccess<'de>,
@@ -321,8 +236,12 @@ impl<'de> Deserialize<'de> for Player {
                 let mut current_location = None;
                 let mut skills_training = None;
                 let mut previous_skills = None;
+                let mut game_position_fitness = None;
+                let mut game_position_fitness_training = None;
+                let mut training_focus = None;
                 let mut tiredness = None;
                 let mut morale = None;
+                let mut drunkenness = None;
                 let mut compact_skills: Option<Vec<Skill>> = None;
                 let mut historical_stats = None;
 
@@ -400,6 +319,28 @@ impl<'de> Deserialize<'de> for Player {
                             }
                             previous_skills = Some(map.next_value()?);
                         }
+                        Field::GamePositionFitness => {
+                            if game_position_fitness.is_some() {
+                                return Err(serde::de::Error::duplicate_field(
+                                    "game_position_fitness",
+                                ));
+                            }
+                            game_position_fitness = Some(map.next_value()?);
+                        }
+                        Field::GamePositionFitnessTraining => {
+                            if game_position_fitness_training.is_some() {
+                                return Err(serde::de::Error::duplicate_field(
+                                    "game_position_fitness_training",
+                                ));
+                            }
+                            game_position_fitness_training = Some(map.next_value()?);
+                        }
+                        Field::TrainingFocus => {
+                            if training_focus.is_some() {
+                                return Err(serde::de::Error::duplicate_field("training_focus"));
+                            }
+                            training_focus = Some(map.next_value()?);
+                        }
                         Field::Tiredness => {
                             if tiredness.is_some() {
                                 return Err(serde::de::Error::duplicate_field("tiredness"));
@@ -411,6 +352,12 @@ impl<'de> Deserialize<'de> for Player {
                                 return Err(serde::de::Error::duplicate_field("morale"));
                             }
                             morale = Some(map.next_value()?);
+                        }
+                        Field::Drunkenness => {
+                            if drunkenness.is_some() {
+                                return Err(serde::de::Error::duplicate_field("drunkenness"));
+                            }
+                            drunkenness = Some(map.next_value()?);
                         }
                         Field::CompactSkills => {
                             if compact_skills.is_some() {
@@ -446,16 +393,21 @@ impl<'de> Deserialize<'de> for Player {
                     .ok_or_else(|| serde::de::Error::missing_field("skills_training"))?;
                 let previous_skills = previous_skills
                     .ok_or_else(|| serde::de::Error::missing_field("previous_skills"))?;
+
+                let game_position_fitness = game_position_fitness.unwrap_or_default();
+                let game_position_fitness_training =
+                    game_position_fitness_training.unwrap_or_default();
+                let training_focus = training_focus.unwrap_or_default();
                 let tiredness =
                     tiredness.ok_or_else(|| serde::de::Error::missing_field("tiredness"))?;
                 let morale = morale.ok_or_else(|| serde::de::Error::missing_field("morale"))?;
+                let drunkenness = drunkenness.unwrap_or_default();
                 let compact_skills = compact_skills
                     .ok_or_else(|| serde::de::Error::missing_field("compact_skills"))?;
                 let historical_stats = historical_stats.unwrap_or_default();
 
                 let mut player = Player {
                     id,
-
                     peer_id,
                     version,
                     info,
@@ -472,8 +424,12 @@ impl<'de> Deserialize<'de> for Player {
                     current_location,
                     skills_training,
                     previous_skills,
+                    game_position_fitness,
+                    game_position_fitness_training,
+                    training_focus,
                     tiredness,
                     morale,
+                    drunkenness,
                     historical_stats,
                     build_data: PlayerBuildData::default(),
                 };
@@ -509,6 +465,13 @@ impl<'de> Deserialize<'de> for Player {
                     charisma: compact_skills[19],
                 };
 
+                // FIXME: remove me in next version
+                if player.game_position_fitness == [Skill::default(); NUM_GAME_POSITIONS as usize] {
+                    player.set_initial_game_position_fitness(None);
+                    // FIXME: when we want to stop this migration, we can return an error here as:
+                    // return Err(anyhow!("Missing game_position_fitness. You probably need to download version 1.6.2 and load the file once to initialize it."))
+                }
+
                 Ok(player)
             }
         }
@@ -526,8 +489,11 @@ impl<'de> Deserialize<'de> for Player {
             "current_location",
             "skills_training",
             "previous_skills",
+            "game_position_fitness",
+            "training_focus",
             "tiredness",
             "morale",
+            "drunkenness",
             "compact_skills",
             "historical_stats",
         ];
@@ -556,7 +522,7 @@ impl Player {
         let position = if let Some(pos) = self.build_data.position {
             pos
         } else {
-            rng.random_range(0..MAX_GAME_POSITION)
+            rng.random_range(0..NUM_GAME_POSITIONS)
         };
 
         self.info.population = if let Some(population) = self.build_data.population {
@@ -620,14 +586,14 @@ impl Player {
 
         self.previous_skills = self.current_skill_array();
 
-        // Extra potential has a variance that depends
-        let std_dev = 3.0 + 1.0 - self.info.relative_age();
+        self.set_initial_game_position_fitness(Some(rng));
+
+        // Extra potential has a variance that depends on current age
+        let std_dev = 1.5 + 3.0 * (1.0 - self.info.relative_age());
         let normal = Normal::new(0.0, std_dev).expect("Should create valid normal distribution");
         let extra_potential = normal.sample(rng).abs();
-        self.potential = (self.average_skill() + extra_potential)
-            .max(self.average_skill())
-            .bound();
-        self.reputation = (self.average_skill() / 5.0 + self.info.relative_age() * 5.0).bound();
+        self.potential = (self.average_skill() + extra_potential).bound();
+        self.reputation = (self.average_skill() / 6.0 + self.info.relative_age() * 4.5).bound();
 
         self
     }
@@ -691,6 +657,71 @@ impl Player {
         self.build_data.base_level = base_level;
 
         self
+    }
+
+    fn set_initial_game_position_fitness(&mut self, rng: Option<&mut ChaCha8Rng>) {
+        let rng = if let Some(r) = rng {
+            r
+        } else {
+            &mut ChaCha8Rng::from_rng(&mut rand::rng())
+        };
+        let positions_by_skill_fitness = (0..NUM_GAME_POSITIONS)
+            .sorted_by(|&a, &b| {
+                self.position_rating(b)
+                    .partial_cmp(&self.position_rating(a))
+                    .expect("There should be an ordering")
+            })
+            .collect_vec();
+
+        // NOTE: this function is called only during initialization, so the relevant value is the intuition at initialization
+        // (potential does not change).
+        let bonus_fitness = 0.15 * (0.5 * self.mental.intuition + 0.5 * self.potential)
+            + self.info.population.bonus_base_fitness();
+        let std_dev = 4.0;
+        for i in 0..NUM_GAME_POSITIONS as usize {
+            let mean = BASE_FITNESS[i] + bonus_fitness; //Can be larger than MAX_SKILL
+            let normal =
+                Normal::new(mean, std_dev).expect("Should create valid normal distribution");
+            let value = normal.sample(rng).bound();
+            let position = positions_by_skill_fitness[i] as usize;
+            self.game_position_fitness[position] = value;
+        }
+    }
+
+    pub fn increase_game_position_fitness(&mut self) {}
+
+    pub fn position_rating(&self, position: GamePosition) -> Skill {
+        let mut rating = 0 as f32;
+        let weights = position.weights();
+        let mut total_weight = 0 as f32;
+        for i in 0..self.current_skill_array().len() {
+            let w = weights[i].powf(4.0);
+            rating += w * self.current_skill_array()[i];
+            total_weight += w;
+        }
+
+        // FIXME: add position fitness here at next major version
+        // let fitness = self
+        //     .game_position_fitness
+        //     .get(position as usize)
+        //     .copied()
+        //     .unwrap_or_default()
+        //     / MAX_SKILL;
+        // (rating / total_weight * fitness).bound()
+        (rating / total_weight).bound()
+    }
+
+    pub fn best_position(&self) -> GamePosition {
+        let mut best = 0;
+        let mut best_rating = 0.0;
+        for i in 0..NUM_GAME_POSITIONS {
+            let rating = self.position_rating(i);
+            if rating > best_rating {
+                best = i;
+                best_rating = rating;
+            }
+        }
+        best
     }
 
     pub fn current_skill_array(&self) -> [Skill; 20] {
@@ -1008,6 +1039,30 @@ impl Player {
         self.morale = (self.morale + mod_morale).max(min_morale).bound();
     }
 
+    pub fn age_modifier_to_skill_update(&self, idx: usize) -> f32 {
+        // Age modifier:
+        //   Young: linear from 0.75 at birth to 1.0 at peak.
+        //   Old:   linear from 1.0 at peak to max_modifier at retirement.
+        //          Athletics (idx 0-3):  max 3.15
+        //          Mental (16-19):       max 1.55
+        //          Off/Def/Tech (4-15):  max 2.55
+        let relative_age = self.info.relative_age();
+        if relative_age <= PEAK_PERFORMANCE_RELATIVE_AGE {
+            0.75 + 0.25 * (relative_age / PEAK_PERFORMANCE_RELATIVE_AGE)
+        } else {
+            let progress = (relative_age - PEAK_PERFORMANCE_RELATIVE_AGE)
+                / (1.0 - PEAK_PERFORMANCE_RELATIVE_AGE);
+            let max_modifier = if idx < 4 {
+                3.15
+            } else if idx > 15 {
+                1.55
+            } else {
+                2.55
+            };
+            1.0 + progress * (max_modifier - 1.0)
+        }
+    }
+
     pub fn modify_skill(&mut self, idx: usize, mut value: f32) {
         // Quickness cannot improve beyond WOODEN_LEG_MAX_QUICKNESS if player has a wooden leg
         if self.has_wooden_leg() && idx == 0 && self.athletics.quickness >= WOODEN_LEG_MAX_QUICKNESS
@@ -1060,51 +1115,65 @@ impl Player {
 
     pub fn update_skills_training(
         &mut self,
-        experience_at_position: [u32; MAX_GAME_POSITION as usize],
+        experience_at_position: [u32; NUM_GAME_POSITIONS as usize],
         training_bonus: f32,
         training_focus: Option<TrainingFocus>,
     ) {
-        // potential_modifier has a value ranging from 0.0 to 2.0.
-        // Players with skills below their potential improve faster, above their potential improve slower.
-        let potential_modifier = if self.average_skill() > self.potential {
-            (1.0 + (self.potential - self.average_skill()) / MAX_SKILL)
+        // potential_modifier:
+        // Below the cap, growth is boosted by a sublinear curve of the gap
+        // (potential - tot_skill)/MAX_SKILL. powf(1.75) keeps the catch-up
+        // boost near zero in the mid-range and only ramps up for players
+        // genuinely far below their potential, avoiding the rubber-band
+        // effect that a linear slope produced.
+        // Above the cap, growth decays sharply via powf(30).
+        let tot_skill = TOT_SKILL_MODIFIER * self.average_skill();
+        let potential_modifier = if tot_skill > self.potential {
+            (1.0 + (self.potential - tot_skill) / MAX_SKILL)
                 .max(0.0)
                 .powf(30.0)
         } else {
-            1.0 + (self.potential - self.average_skill()) / MAX_SKILL
+            1.0 + ((self.potential - tot_skill) / MAX_SKILL)
+                .max(0.0)
+                .powf(1.5)
         };
-        for p in 0..MAX_GAME_POSITION {
-            if experience_at_position[p as usize] == 0 {
+
+        for p in 0..NUM_GAME_POSITIONS as usize {
+            if experience_at_position[p] == 0 {
                 continue;
             }
 
-            for (idx, &w) in p.weights().iter().enumerate() {
+            let base_increase = experience_at_position[p] as f32
+                * EXPERIENCE_PER_SKILL_MULTIPLIER
+                * training_bonus
+                * potential_modifier;
+
+            let position_increase = if matches!(training_focus, Some(TrainingFocus::GamePosition(pos)) if pos == p as u8)
+            {
+                1.25 * base_increase
+            } else {
+                0.5 * base_increase
+            };
+
+            self.game_position_fitness_training[p] += position_increase;
+            // Cap to maximum skill increase per day.
+            self.game_position_fitness_training[p] =
+                self.game_position_fitness_training[p].min(MAX_SKILL_INCREASE_PER_LONG_TICK);
+
+            for (idx, &w) in (p as GamePosition).weights().iter().enumerate() {
                 let training_focus_bonus = match training_focus {
-                    Some(focus) => {
-                        if focus.is_focus(idx) {
-                            2.0
-                        } else {
-                            0.5
-                        }
-                    }
+                    Some(focus) => focus.bonus_for_skill(idx),
                     None => 1.0,
                 };
-                self.skills_training[idx] += experience_at_position[p as usize] as f32
-                    * w
-                    * EXPERIENCE_PER_SKILL_MULTIPLIER
-                    * training_bonus
-                    * training_focus_bonus
-                    * potential_modifier;
+
+                let skill = self.skill_at_index(idx);
+                let cap_factor = 1.25 * (1.0 - skill / MAX_SKILL).powf(0.5).max(0.75);
+
+                self.skills_training[idx] += w * training_focus_bonus * cap_factor * base_increase;
 
                 log::debug!(
                     "Experience increase: {:.3}={}x{}x{}x{}x{}x{:.2}",
-                    experience_at_position[p as usize] as f32
-                        * w
-                        * EXPERIENCE_PER_SKILL_MULTIPLIER
-                        * training_bonus
-                        * training_focus_bonus
-                        * potential_modifier,
-                    experience_at_position[p as usize] as f32,
+                    w * training_focus_bonus * base_increase,
+                    experience_at_position[p] as f32,
                     w,
                     EXPERIENCE_PER_SKILL_MULTIPLIER,
                     training_bonus,
@@ -1328,6 +1397,135 @@ mod test {
             "./pytests/player_generation.json",
             serde_json::to_vec(&data)?,
         )?;
+        Ok(())
+    }
+
+    #[test]
+    fn test_player_evolution() -> AppResult<()> {
+        use crate::core::constants::{AGE_INCREASE_PER_LONG_TICK, SKILL_DECREMENT_PER_LONG_TICK};
+        use crate::core::types::TrainingFocus;
+
+        fn round_skills(skills: [f32; 20]) -> Vec<f32> {
+            skills.iter().map(|v| (v * 100.0).round() / 100.0).collect()
+        }
+
+        let mut app = App::test_default()?;
+        let world = &mut app.world;
+
+        let sorted_ids = world
+            .players
+            .values()
+            .sorted_by(|a, b| b.potential.partial_cmp(&a.potential).unwrap())
+            .map(|p| p.id)
+            .collect_vec();
+        let top_id = sorted_ids[0];
+        let median_id = sorted_ids[sorted_ids.len() / 2];
+        let bottom_id = *sorted_ids.last().expect("at least one player");
+
+        for (label, pid) in [
+            ("TOP", top_id),
+            ("MEDIAN", median_id),
+            ("BOTTOM", bottom_id),
+        ] {
+            for focus in [
+                None,
+                Some(TrainingFocus::Offense),
+                Some(TrainingFocus::GamePosition(0)),
+            ] {
+                let mut player = world.players.get_or_err(&pid)?.clone();
+                player.info.age = player.info.population.min_age();
+                player.skills_training = [0.0; 20];
+
+                println!(
+                    "\n=== {label} potential, focus={focus:?} | population={:?} ===",
+                    player.info.population
+                );
+                let initial_best_pos = player
+                    .game_position_fitness
+                    .iter()
+                    .enumerate()
+                    .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
+                    .map(|(idx, _)| idx)
+                    .unwrap_or(0);
+                println!(
+                    "Initial:  rel_age={:.3} overall={:.2} potential={:.2} best_pos={}",
+                    player.info.relative_age(),
+                    player.average_skill(),
+                    player.potential,
+                    initial_best_pos
+                );
+                println!(
+                    "Initial skills: {:?}",
+                    round_skills(player.current_skill_array())
+                );
+
+                let mut logged_075 = false;
+                let mut iterations = 0usize;
+
+                loop {
+                    let relative_age = player.info.relative_age();
+                    if relative_age >= 1.0 || iterations > 5000 {
+                        break;
+                    }
+
+                    // One game per day: 32 minutes = 32*60 = 1920 seconds played.
+                    // Distribute by fitness rank: 60% to best position, 13.3% to each of
+                    // the next three best, 0 to the worst. Better than uniform [384;5] and
+                    // more realistic than all-on-best.
+                    let mut ranked: Vec<usize> = (0..5).collect();
+                    ranked.sort_by(|&a, &b| {
+                        player.game_position_fitness[b]
+                            .partial_cmp(&player.game_position_fitness[a])
+                            .unwrap()
+                    });
+                    let mut experience_at_position = [0u32; 5];
+                    experience_at_position[ranked[0]] = 1152; // 60%
+                    experience_at_position[ranked[1]] = 256; //  13.3%
+                    experience_at_position[ranked[2]] = 256;
+                    experience_at_position[ranked[3]] = 256;
+                    // ranked[4] gets 0.
+                    player.update_skills_training(experience_at_position, 1.5, focus);
+
+                    // Inline the relevant body of World::tick_players_update so we
+                    // don't need to expose it.
+                    for idx in 0..player.skills_training.len() {
+                        let age_modifier = player.age_modifier_to_skill_update(idx);
+                        player.modify_skill(idx, SKILL_DECREMENT_PER_LONG_TICK * age_modifier);
+                        let training = player.skills_training[idx];
+                        player.modify_skill(idx, training);
+                    }
+                    player.skills_training = [0.0; 20];
+                    player.info.age += AGE_INCREASE_PER_LONG_TICK;
+                    iterations += 1;
+
+                    if !logged_075 && player.info.relative_age() >= 0.75 {
+                        println!(
+                            "@0.75:    rel_age={:.3} overall={:.2} {} (games={iterations})",
+                            player.info.relative_age(),
+                            player.average_skill(),
+                            player.average_skill().stars()
+                        );
+                        println!(
+                            "@0.75 skills: {:?}",
+                            round_skills(player.current_skill_array())
+                        );
+                        logged_075 = true;
+                    }
+                }
+
+                println!(
+                    "@1.00:    rel_age={:.3} overall={:.2} {} (games={iterations})",
+                    player.info.relative_age(),
+                    player.average_skill(),
+                    player.average_skill().stars()
+                );
+                println!(
+                    "@1.00 skills: {:?}",
+                    round_skills(player.current_skill_array())
+                );
+            }
+        }
+
         Ok(())
     }
 }

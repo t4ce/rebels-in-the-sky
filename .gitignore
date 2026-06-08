@@ -88,6 +88,11 @@ tests/rustdoc-gui/src/**.lock
 # Before adding new lines, see the comment at the top.
 
 local_world.json.compressed
+local_world.json.gz
 pytests
 pytests/*
 keys
+tests/player_evolution/evolution_data.json
+tests/player_evolution/*.png
+tests/player_potential_distribution/potential_data.json
+tests/player_potential_distribution/*.png

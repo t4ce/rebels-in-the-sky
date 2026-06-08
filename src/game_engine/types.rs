@@ -3,12 +3,11 @@ use crate::{
     core::{
         constants::MAX_PLAYERS_PER_GAME,
         player::Player,
-        position::{GamePosition, MAX_GAME_POSITION},
+        position::{GamePosition, NUM_GAME_POSITIONS},
         skill::{MAX_SKILL, MIN_SKILL},
         team::Team,
-        types::TrainingFocus,
         utils::is_default,
-        GamePositionUtils, GameRating, GameSkill, Rated, Skill,
+        GameRating, GameSkill, Rated, Skill,
     },
     game_engine::constants::NUMBER_OF_ROLLS,
     image::game::PitchImage,
@@ -18,12 +17,13 @@ use anyhow::anyhow;
 use itertools::Itertools;
 
 use libp2p::PeerId;
-use std::sync::LazyLock;
-use rand::{RngExt};
+use rand::RngExt;
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
+use std::sync::LazyLock;
 use std::{collections::HashMap, ops::Not};
+use strum::Display;
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
 pub struct GameStats {
@@ -145,7 +145,6 @@ pub struct TeamInGame {
     pub players: PlayerMap,
     pub stats: GameStatsMap,
     pub tactic: Tactic,
-    pub training_focus: Option<TrainingFocus>,
     pub momentum: u8,
     #[serde(skip_serializing_if = "is_default")]
     #[serde(default)]
@@ -158,20 +157,14 @@ impl TeamInGame {
 
         for (idx, &player_id) in players.keys().enumerate() {
             let mut player_stats = GameStats::default();
-            if (idx as GamePosition) < MAX_GAME_POSITION {
+            if (idx as GamePosition) < NUM_GAME_POSITIONS {
                 player_stats.position = Some(idx as GamePosition);
             }
             stats.insert(player_id, player_stats.clone());
         }
 
-        let initial_tiredness = players
-            .keys()
-            .map(|id| players.get(id).unwrap().tiredness)
-            .collect();
-        let initial_morale = players
-            .keys()
-            .map(|id| players.get(id).unwrap().morale)
-            .collect();
+        let initial_tiredness = players.values().map(|p| p.tiredness).collect();
+        let initial_morale = players.values().map(|p| p.morale).collect();
 
         let network_game_rating = team.network_game_rating.clone();
         Self {
@@ -186,7 +179,6 @@ impl TeamInGame {
             players,
             stats,
             tactic: team.game_tactic,
-            training_focus: team.training_focus,
             network_game_rating,
             ..Default::default()
         }
@@ -252,6 +244,60 @@ impl Rated for TeamInGame {
     }
 }
 
+#[derive(Debug, Clone, Copy, Default, Display, PartialEq, Serialize_repr, Deserialize_repr)]
+#[repr(u8)]
+pub enum SubstitutionTendency {
+    Low,
+    #[default]
+    Normal,
+    High,
+}
+
+impl SubstitutionTendency {
+    pub const fn next(&self) -> Self {
+        match self {
+            Self::Low => Self::Normal,
+            Self::Normal => Self::High,
+            Self::High => Self::Low,
+        }
+    }
+
+    pub const fn description(&self) -> &'static str {
+        match self {
+            Self::Low => "Tend to substitute players less frequently during games.",
+            Self::Normal => "Tend to substitute players with default frequency during games.",
+            Self::High => "Tend to substitute players more often during games.",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, Display, PartialEq, Serialize_repr, Deserialize_repr)]
+#[repr(u8)]
+pub enum GamePositionFluidity {
+    Low,
+    #[default]
+    Normal,
+    High,
+}
+
+impl GamePositionFluidity {
+    pub const fn next(&self) -> Self {
+        match self {
+            Self::Low => Self::Normal,
+            Self::Normal => Self::High,
+            Self::High => Self::Low,
+        }
+    }
+
+    pub const fn description(&self) -> &'static str {
+        match self {
+            Self::Low => "Tend to put players in their best position as much as possible.",
+            Self::Normal => "Tend to put players in their best position with default frequency.",
+            Self::High => "Tend to allow players to play in more positions.",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Serialize_repr, Deserialize_repr)]
 #[repr(u8)]
 pub enum Possession {
@@ -291,7 +337,7 @@ pub static AWAY_IMPOSSIBLE_SHOT_POSITIONS: LazyLock<Vec<(u8, u8)>> =
     LazyLock::new(|| get_shot_positions(PitchImage::AwayImpossibleShotMask));
 
 fn get_shot_positions(mask: PitchImage) -> Vec<(u8, u8)> {
-    let img = mask.image().unwrap();
+    let img = mask.image();
     // select the position of all pixels with positive alpha
     let mut positions = vec![];
     for x in 0..img.width() {
@@ -378,7 +424,7 @@ impl EnginePlayer for Player {
             .max(self.min_roll())
             .min(self.max_roll());
 
-        roll as f32 + 2.0 * position.player_rating(self.current_skill_array())
+        roll as f32 + 2.0 * self.position_rating(position)
     }
 }
 
