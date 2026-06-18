@@ -151,7 +151,7 @@ impl World {
 
         for _ in 0..number_free_pirates {
             let base_level = own_team_base_level + rng.random_range(0.0..2.5);
-            self.generate_random_player(rng, Some(position), planet, base_level)?;
+            self.generate_random_pirate(rng, Some(position), planet, base_level)?;
             position = (position + 1) % NUM_GAME_POSITIONS;
         }
 
@@ -200,12 +200,12 @@ impl World {
         let team_base_level = team_base_level.unwrap_or(rng.random_range(2..=14) as f32);
         for position in 0..NUM_GAME_POSITIONS {
             let player_id =
-                self.generate_random_player(rng, Some(position), &planet, team_base_level)?;
+                self.generate_random_pirate(rng, Some(position), &planet, team_base_level)?;
             self.add_player_to_team(&player_id, &team_id)?;
         }
 
         loop {
-            let player_id = self.generate_random_player(rng, None, &planet, team_base_level)?;
+            let player_id = self.generate_random_pirate(rng, None, &planet, team_base_level)?;
             self.add_player_to_team(&player_id, &team_id)?;
             let team = self.teams.get_or_err(&team_id)?;
             if team.player_ids.len() == team.spaceship.crew_capacity() as usize {
@@ -293,7 +293,7 @@ impl World {
         Ok(asteroid_id)
     }
 
-    fn generate_random_player(
+    fn generate_random_pirate(
         &mut self,
         rng: &mut ChaCha8Rng,
         position: Option<GamePosition>,
@@ -736,6 +736,7 @@ impl World {
                 .iter()
                 .map(|&id| self.players.get(&id).unwrap())
                 .collect(),
+            team.game_position_fluidity,
         );
         team.version += 1;
 
@@ -818,7 +819,7 @@ impl World {
         team.player_ids.retain(|&p| p != player.id);
 
         if let Ok(pirates) = Self::get_team_players(&self.players, &team) {
-            team.player_ids = Team::best_position_assignment(pirates);
+            team.player_ids = Team::best_position_assignment(pirates, team.game_position_fluidity);
             team.version += 1;
         }
 
@@ -1118,6 +1119,9 @@ impl World {
             }
         };
 
+        let home_initial_rum = home_team_in_game.initial_rum;
+        let away_initial_rum = away_team_in_game.initial_rum;
+
         let game_id = self.generate_game_no_checks(
             home_team_in_game,
             away_team_in_game,
@@ -1144,8 +1148,8 @@ impl World {
             }
         }
 
-        home_team.current_game = Some(game_id);
-        away_team.current_game = Some(game_id);
+        home_team.enter_game(game_id, home_initial_rum);
+        away_team.enter_game(game_id, away_initial_rum);
         self.dirty = true;
         self.dirty_ui = true;
 
@@ -1176,6 +1180,7 @@ impl World {
             .expect("Should have failed in can_challenge_team");
 
         let team_ids = [home_team_in_game.team_id, away_team_in_game.team_id];
+        let initial_rums = [home_team_in_game.initial_rum, away_team_in_game.initial_rum];
 
         let game_id = self.generate_game_no_checks(
             home_team_in_game,
@@ -1185,13 +1190,13 @@ impl World {
             None,
         )?;
 
-        for team_id in team_ids.iter() {
+        for (team_id, initial_rum) in team_ids.iter().zip(initial_rums) {
             let team = self
                 .teams
                 .get_mut(team_id)
                 .ok_or_else(|| anyhow!("Team {team_id:?} not found"))?;
 
-            team.current_game = Some(game_id);
+            team.enter_game(game_id, initial_rum);
             if team.id == self.own_team_id {
                 self.dirty_network = true
             }
@@ -1433,7 +1438,7 @@ impl World {
         if amount > 0 {
             for _ in 0..amount {
                 let base_level = rng.random_range(0.0..7.0);
-                let player_id = self.generate_random_player(rng, None, planet, base_level)?;
+                let player_id = self.generate_random_pirate(rng, None, planet, base_level)?;
 
                 free_pirates.push(player_id);
             }
@@ -1507,8 +1512,14 @@ impl World {
                 self.tick_team_position_assignment()?;
             }
 
-            if self.games.len() < AUTO_GENERATE_GAMES_NUMBER {
-                self.generate_random_games()?;
+            let num_local_games = self
+                .games
+                .values()
+                .filter(|g| g.is_local())
+                .collect_vec()
+                .len();
+            if num_local_games < AUTO_GENERATE_GAMES_NUMBER {
+                self.generate_random_games(AUTO_GENERATE_GAMES_NUMBER - num_local_games)?;
             }
 
             // Once every MEDIUM interval, set dirty_network flag,
@@ -1597,6 +1608,7 @@ impl World {
 
                     player.tiredness = game_player.tiredness;
                     player.morale = game_player.morale;
+                    player.drunkenness = game_player.drunkenness;
 
                     player.version += 1;
                     player.add_morale(MORALE_INCREASE_PER_GAME);
@@ -1743,6 +1755,12 @@ impl World {
                 None => (1, 1),
             };
 
+            // On top of the bonus, teams get back the rum brought to the game that was not drunk.
+            // Note: the total is capped by the available storage, so bottles that no longer fit
+            // (if storage filled up during the game) are lost.
+            let home_team_rum = home_team_rum + game.home_team_in_game.rum;
+            let away_team_rum = away_team_rum + game.away_team_in_game.rum;
+
             // Set playing teams current game to None and assign income, reputation, and rum.
             // Network games allow for not finding the team in the world.teams, local games don't
             let team_ids = [
@@ -1807,19 +1825,25 @@ impl World {
                     self.teams.insert(team.id, team);
                 }
             } else {
+                // Snapshot both teams' pre-game ratings before updating either
+                let home_local_rating = self
+                    .teams
+                    .get_or_err(&game.home_team_in_game.team_id)?
+                    .local_game_rating
+                    .clone();
+                let away_local_rating = self
+                    .teams
+                    .get_or_err(&game.away_team_in_game.team_id)?
+                    .local_game_rating
+                    .clone();
+
                 for (idx, team_id) in team_ids.iter().enumerate() {
                     let mut team = self.teams.get_or_err(team_id)?.clone();
 
                     let other_rating = if idx == 0 {
-                        &self
-                            .teams
-                            .get_or_err(&game.away_team_in_game.team_id)?
-                            .local_game_rating
+                        &away_local_rating
                     } else {
-                        &self
-                            .teams
-                            .get_or_err(&game.home_team_in_game.team_id)?
-                            .local_game_rating
+                        &home_local_rating
                     };
 
                     match game.winner {
@@ -2044,14 +2068,18 @@ impl World {
                 game.home_team_in_game.team_id,
                 game.away_team_in_game.team_id,
             ];
-            for team_id in team_ids.iter() {
+            let initial_rums = [
+                game.home_team_in_game.initial_rum,
+                game.away_team_in_game.initial_rum,
+            ];
+            for (team_id, initial_rum) in team_ids.iter().zip(initial_rums) {
                 let team = if let Some(team) = self.teams.get_mut(team_id) {
                     team
                 } else {
                     continue;
                 };
 
-                team.current_game = Some(game.id);
+                team.enter_game(game.id, initial_rum);
                 if team.id == self.own_team_id {
                     self.dirty_network = true
                 }
@@ -2326,7 +2354,20 @@ impl World {
                 } else {
                     continue;
                 };
-                if player.tiredness > 0.0 {
+
+                // Negative drunkenness means that the player is drunk.
+                if player.drunkenness < 0.0 {
+                    player.drunkenness = (player.drunkenness
+                        + bonus * RECOVERING_DRUNKENNESS_PER_SHORT_TICK)
+                        .min(0.0);
+                } else if player.drunkenness > 0.0 {
+                    player.drunkenness = (player.drunkenness
+                        - bonus * RECOVERING_DRUNKENNESS_PER_SHORT_TICK)
+                        .bound();
+                }
+
+                // While drunk, tiredness is not recovered, until drunkenness is 0.0.
+                if player.tiredness > 0.0 && player.drunkenness >= 0.0 {
                     // Recovery outside of games is slower by a factor TICK_SHORT_INTERVAL/TICK_MEDIUM_INTERVAL
                     // so that it takes 1 minute * 10 * 100 ~ 18 hours to recover from 100% tiredness.
                     player.tiredness =
@@ -2358,7 +2399,8 @@ impl World {
             }
 
             if let Ok(pirates) = Self::get_team_players(&self.players, team) {
-                team.player_ids = Team::best_position_assignment(pirates);
+                team.player_ids =
+                    Team::best_position_assignment(pirates, team.game_position_fluidity);
             }
 
             let rng = &mut ChaCha8Rng::from_rng(&mut rand::rng());
@@ -2496,7 +2538,17 @@ impl World {
             }
             player.version += 1;
             // Reset player improvements for UI.
-            player.previous_skills = player.current_skill_array();
+            let current = player.current_skill_array();
+            for i in 0..player.previous_skills.len() {
+                player.previous_skills[i] = TREND_SMOOTHING * current[i]
+                    + (1.0 - TREND_SMOOTHING) * player.previous_skills[i];
+            }
+
+            for i in 0..NUM_GAME_POSITIONS as usize {
+                player.previous_game_position_fitness[i] = TREND_SMOOTHING
+                    * player.game_position_fitness[i]
+                    + (1.0 - TREND_SMOOTHING) * player.previous_game_position_fitness[i];
+            }
             player.info.age += AGE_INCREASE_PER_LONG_TICK;
 
             if player.special_trait == Some(Trait::Crumiro) {
@@ -2507,38 +2559,36 @@ impl World {
 
             // Pirates slightly dislike being part of a team.
             // This is counteracted by the morale boost pirates get by playing games.
-            // We do not apply this to computer teams since no games are played during simulation,
-            // and hence it would result in all computer players to be completely demoralized.
             player.add_morale(MORALE_DECREASE_PER_LONG_TICK);
             player.reputation = (player.reputation + REPUTATION_DECREASE_PER_LONG_TICK).bound();
 
+            // All game position fitness have decrease by a small amount
+            // that depends on the total game fitness and the player intuition.
+            //This is planned to counteract the effect of training by playing games.
+            let malus = GAME_POSITION_DECREMENT_PER_LONG_TICK
+                * ((player.game_position_fitness.iter().sum::<Skill>()
+                    / player.game_position_fitness.len() as Skill
+                    - 0.25 * player.mental.intuition)
+                    / MAX_SKILL)
+                    .bound();
             for p in 0..player.game_position_fitness.len() {
                 if let Some(value) = player.game_position_fitness.get_mut(p) {
-                    *value = (*value
-                        + player
-                            .game_position_fitness_training
-                            .get(p)
-                            .copied()
-                            .unwrap_or_default())
-                    .bound()
+                    *value = (*value + malus).bound();
+
+                    // Increase player game position from training
+                    let bonus = player
+                        .game_position_fitness_training
+                        .get(p)
+                        .copied()
+                        .unwrap_or_default();
+                    *value = (*value + bonus).bound()
                 }
             }
 
             for idx in 0..player.skills_training.len() {
                 // Reduce player skills. This is planned to counteract the effect of training by playing games.
-                // Age modifier:
-                //   Young: linear from 0.75 at birth to 1.0 at peak.
-                //   Old:   linear from 1.0 at peak to max_modifier at retirement.
-                //          Athletics (idx 0-3):  max 3.15
-                //          Mental (16-19):       max 1.55
-                //          Off/Def/Tech (4-15):  max 2.55
                 let age_modifier = player.age_modifier_to_skill_update(idx);
-
                 player.modify_skill(idx, SKILL_DECREMENT_PER_LONG_TICK * age_modifier.bound());
-                for idx in 0..NUM_GAME_POSITIONS as usize {
-                    player.game_position_fitness[idx] +=
-                        0.25 * SKILL_DECREMENT_PER_LONG_TICK * age_modifier.bound();
-                }
 
                 // Increase player skills from training
                 player.modify_skill(idx, player.skills_training[idx]);
@@ -2729,47 +2779,45 @@ impl World {
         Ok(())
     }
 
-    fn generate_random_games(&mut self) -> AppResult<()> {
+    fn generate_random_games(&mut self, num_games: usize) -> AppResult<()> {
         let rng = &mut ChaCha8Rng::from_rng(&mut rand::rng());
+
+        // Phase 1: collect one matchup per eligible planet (immutable reads only).
+        let mut matchups: Vec<(TeamId, TeamId)> = vec![];
         for planet in self.planets.values() {
             if planet.team_ids.len() < 2 {
                 continue;
             }
-
             let candidate_teams = planet
                 .team_ids
                 .iter()
-                .map(|&id| self.teams.get_or_err(&id))
-                .filter(|team_res| {
-                    if let Ok(team) = team_res {
-                        if team.player_ids.len() < MIN_PLAYERS_PER_GAME {
-                            return false;
-                        }
-
-                        let average_tiredness = team.average_tiredness(self);
-                        return team.current_game.is_none()
-                            && team.autonomous_strategy.challenge_local
-                            && team.peer_id.is_none()
-                            && average_tiredness <= MAX_AVG_TIREDNESS_PER_AUTO_GAME;
-                    }
-                    false
+                .filter_map(|id| self.teams.get(id))
+                .filter(|team| {
+                    team.player_ids.len() >= MIN_PLAYERS_PER_GAME
+                        && team.current_game.is_none()
+                        && team.autonomous_strategy.challenge_local
+                        && team.peer_id.is_none()
+                        && team.average_tiredness(self) <= MAX_AVG_TIREDNESS_PER_AUTO_GAME
                 })
-                .collect::<AppResult<Vec<&Team>>>()?;
+                .collect::<Vec<&Team>>();
 
             if candidate_teams.len() < 2 {
                 continue;
             }
             let teams = candidate_teams.iter().sample(rng, 2);
-            let home_team_in_game =
-                TeamInGame::from_team_id(&teams[0].id, &self.teams, &self.players)?;
+            matchups.push((teams[0].id, teams[1].id));
+        }
 
-            let away_team_in_game =
-                TeamInGame::from_team_id(&teams[1].id, &self.teams, &self.players)?;
+        matchups.shuffle(rng);
+
+        // Phase 2: create games
+        for (home_id, away_id) in matchups.iter().take(num_games) {
+            let home_team_in_game = TeamInGame::from_team_id(home_id, &self.teams, &self.players)?;
+            let away_team_in_game = TeamInGame::from_team_id(away_id, &self.teams, &self.players)?;
 
             if let Err(err) = self.generate_local_game(home_team_in_game, away_team_in_game) {
                 log::error!("Error while generating local game: {err}");
             }
-            return Ok(()); // Generate only one game per call
         }
 
         Ok(())
@@ -3080,8 +3128,10 @@ mod test {
             types::TeamLocation,
             utils::PLANET_DATA,
             world::{TickInterval, AU, EXPLORATION_DURATION},
-            RatedPlayers, DEFAULT_PLANET_ID, MIN_PLAYERS_PER_GAME,
+            RatedPlayers, DEFAULT_PLANET_ID, MAX_SKILL, MIN_PLAYERS_PER_GAME,
+            PORTAL_TRAVEL_DURATION, SPUGNA_DRUNKENNESS_ON_GETTING_DRUNK,
         },
+        game_engine::types::TeamInGame,
         types::{HashMapWithResult, StorableResourceMap, SystemTimeTick, Tick},
         ui::UiCallback,
     };
@@ -3295,11 +3345,9 @@ mod test {
 
     #[test]
     fn test_spugna_portal() -> AppResult<()> {
-        // To actually test this, set PORTAL_DISCOVERY_PROBABILITY to 1.0
         let mut app = App::test_default()?;
         app.new_world();
 
-        // let world = &mut app.world;
         let rng = &mut ChaCha8Rng::from_rng(&mut rand::rng());
         let planet = PLANET_DATA[0].clone();
         let team_id = app.world.generate_random_team(
@@ -3314,14 +3362,18 @@ mod test {
         let mut team = app.world.teams.get_or_err(&team_id)?.clone();
         team.add_resource(Resource::RUM, 20)?;
 
-        // Give player Spugna skill and set it as pilot
+        // Give player Spugna skill and set it as pilot.
+        // Max drunkenness and zero stamina make the next drink trigger
+        // the drunk event with probability exactly 1.0.
         let mut spugna = app.world.players.get_or_err(&team.player_ids[0])?.clone();
         let spugna_id = spugna.id.clone();
         spugna.special_trait = Some(Trait::Spugna);
-        if spugna.info.crew_role != CrewRole::Pilot {
-            app.world.set_team_crew_role(CrewRole::Pilot, spugna.id)?;
-        }
+        spugna.drunkenness = MAX_SKILL;
+        spugna.athletics.stamina = 0.0;
         app.world.players.insert(spugna.id, spugna);
+        if app.world.players.get_or_err(&spugna_id)?.info.crew_role != CrewRole::Pilot {
+            app.world.set_team_crew_role(CrewRole::Pilot, spugna_id)?;
+        }
 
         // Travel to a random planet
         let target = PLANET_DATA[1].clone();
@@ -3339,11 +3391,28 @@ mod test {
         assert!(team.total_travelled == 0);
         app.world.teams.insert(team.id, team);
 
-        // Drink to trigger portal discovery
+        let morale_before = app.world.players.get_or_err(&spugna_id)?.morale;
+
+        // Drink: the spugna pilot gets drunk and discovers a portal.
         UiCallback::Drink {
             player_id: spugna_id,
         }
         .call(&mut app)?;
+
+        let spugna = app.world.players.get_or_err(&spugna_id)?;
+        // Getting drunk wastes the player, makes drunkenness negative and leaves morale untouched.
+        assert!(spugna.is_knocked_out());
+        assert!(spugna.drunkenness == SPUGNA_DRUNKENNESS_ON_GETTING_DRUNK);
+        assert!(spugna.morale == morale_before);
+
+        // The team is now travelling through the portal.
+        let team = app.world.teams.get_or_err(&team_id)?;
+        match team.current_location {
+            TeamLocation::Travelling { duration, .. } => {
+                assert!(duration == PORTAL_TRAVEL_DURATION)
+            }
+            _ => panic!("Team should be travelling through the portal"),
+        }
 
         app.world
             .handle_slow_tick_events(app.world.last_tick_short_interval + TickInterval::SHORT)?;
@@ -3354,6 +3423,100 @@ mod test {
         println!("Travelled distance {}", team.total_travelled);
         // Teleportation does not add to total_travelled
         assert!(team.total_travelled == 0);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_in_game_drinking_rum_accounting() -> AppResult<()> {
+        let mut app = App::test_default()?;
+        app.new_world();
+
+        let rng = &mut ChaCha8Rng::from_rng(&mut rand::rng());
+        let planet = PLANET_DATA[0].clone();
+        let home_id = app.world.generate_random_team(
+            rng,
+            planet.id,
+            "home".into(),
+            "homeship".into(),
+            None,
+        )?;
+        let away_id = app.world.generate_random_team(
+            rng,
+            planet.id,
+            "away".into(),
+            "awayship".into(),
+            None,
+        )?;
+
+        // Give both teams a known amount of rum.
+        const STARTING_RUM: u32 = 20;
+        for team_id in [home_id, away_id] {
+            let mut team = app.world.teams.get_or_err(&team_id)?.clone();
+            let current_rum = team.resources.value(&Resource::RUM);
+            team.saturating_sub_resource(Resource::RUM, current_rum);
+            team.add_resource(Resource::RUM, STARTING_RUM)?;
+            app.world.teams.insert(team.id, team);
+        }
+
+        let home_team_in_game =
+            TeamInGame::from_team_id(&home_id, &app.world.teams, &app.world.players)?;
+        let away_team_in_game =
+            TeamInGame::from_team_id(&away_id, &app.world.teams, &app.world.players)?;
+        let initial_rums = [home_team_in_game.initial_rum, away_team_in_game.initial_rum];
+        assert!(initial_rums[0] > 0);
+        assert!(initial_rums[1] > 0);
+
+        let game_id = app
+            .world
+            .generate_local_game(home_team_in_game, away_team_in_game)?;
+
+        // The rum brought to the game is debited upfront.
+        for (team_id, initial_rum) in [home_id, away_id].iter().zip(initial_rums) {
+            let team = app.world.teams.get_or_err(team_id)?;
+            assert!(team.resources.value(&Resource::RUM) == STARTING_RUM - initial_rum);
+        }
+
+        // Play the game to the end.
+        {
+            let game = app
+                .world
+                .games
+                .get_mut(&game_id)
+                .expect("Game should exist");
+            let mut current_tick = game.starting_at;
+            while !game.has_ended() {
+                game.tick(current_tick);
+                current_tick += TickInterval::SHORT;
+            }
+        }
+
+        let game = app.world.games.get_or_err(&game_id)?.clone();
+        app.world.cleanup_games(Tick::now())?;
+
+        // After the game, the remaining brought rum is returned along with the rum bonus.
+        for (idx, (team_id, initial_rum)) in [home_id, away_id].iter().zip(initial_rums).enumerate()
+        {
+            let team_in_game = if idx == 0 {
+                &game.home_team_in_game
+            } else {
+                &game.away_team_in_game
+            };
+
+            let rum_bonus = match game.winner {
+                Some(winner) if winner == *team_id => team_in_game.players.len() as u32,
+                _ => 1,
+            };
+
+            let total_drunk: u16 = team_in_game.stats.values().map(|s| s.rum_drunk).sum();
+            assert!(total_drunk as u32 == initial_rum - team_in_game.rum);
+
+            let team = app.world.teams.get_or_err(team_id)?;
+            assert!(
+                team.resources.value(&Resource::RUM)
+                    == STARTING_RUM - initial_rum + team_in_game.rum + rum_bonus
+            );
+        }
 
         Ok(())
     }
@@ -3648,7 +3811,7 @@ mod test {
 
         for i in 0..11 {
             assert!(world.games.len() == i);
-            world.generate_random_games()?;
+            world.generate_random_games(1)?;
         }
 
         for game in world.games.values() {

@@ -93,6 +93,9 @@ pub struct Team {
     #[serde(skip_serializing_if = "is_default")]
     #[serde(default)]
     pub game_position_fluidity: GamePositionFluidity,
+    #[serde(skip_serializing_if = "is_default")]
+    #[serde(default)]
+    pub in_game_drinking: InGameDrinking,
     #[serde(skip)]
     pub sent_trades: HashMap<(PlayerId, PlayerId), Trade>,
     #[serde(skip)]
@@ -238,6 +241,14 @@ impl Team {
 
     pub fn saturating_sub_resource(&mut self, resource: Resource, amount: u32) {
         self.resources.saturating_sub(resource, amount);
+    }
+
+    // Register the team to a game. The rum brought to the game is debited upfront
+    // and (if not drunk) returned at the end, so that trading rum during the game
+    // cannot influence the game.
+    pub fn enter_game(&mut self, game_id: GameId, brought_rum: u32) {
+        self.current_game = Some(game_id);
+        self.saturating_sub_resource(Resource::RUM, brought_rum);
     }
 
     pub fn fuel(&self) -> u32 {
@@ -666,7 +677,7 @@ impl Team {
         self.can_play_game_with_team(team, None)
     }
 
-    pub fn can_trade_players(
+    pub fn can_trade_players_with_team(
         &self,
         proposer_player: &Player,
         target_player: &Player,
@@ -980,7 +991,10 @@ impl Team {
         matches!(self.current_location, TeamLocation::Travelling { .. })
     }
 
-    pub fn best_position_assignment(players: Vec<&Player>) -> Vec<PlayerId> {
+    pub fn best_position_assignment(
+        players: Vec<&Player>,
+        game_position_fluidity: GamePositionFluidity,
+    ) -> Vec<PlayerId> {
         if players.len() < NUM_GAME_POSITIONS as usize {
             return players.iter().map(|&p| p.id).collect();
         }
@@ -991,7 +1005,7 @@ impl Team {
             .take(MAX_CREW_SIZE) // For performance reasons, we only consider the first MAX_CREW_SIZE players by rating.
             .map(|&p| {
                 (0..NUM_GAME_POSITIONS)
-                    .map(|position| p.in_game_rating_at_position(position))
+                    .map(|position| p.in_game_rating_at_position(position, game_position_fluidity))
                     .collect::<Vec<f32>>()
             })
             .collect::<Vec<Vec<f32>>>();
@@ -1011,8 +1025,8 @@ impl Team {
             }
         }
 
-        let idx_perms = (0..min(players.len(), 12))
-            .permutations(5)
+        let idx_perms = (0..min(players.len(), MAX_CREW_SIZE))
+            .permutations(NUM_GAME_POSITIONS as usize)
             .collect::<Vec<Vec<usize>>>();
         let max_perm = &idx_perms[max_perm_index];
         let mut new_players: Vec<PlayerId> = max_perm.iter().map(|&i| players[i].id).collect();
@@ -1023,8 +1037,8 @@ impl Team {
             .copied()
             .collect::<Vec<&Player>>();
         bench.sort_by(|a, b| {
-            b.tiredness_weighted_rating()
-                .partial_cmp(&a.tiredness_weighted_rating())
+            (b.average_skill() * (1.0 - b.tiredness / MAX_SKILL))
+                .partial_cmp(&(a.average_skill() * (1.0 - a.tiredness / MAX_SKILL)))
                 .expect("Skill value should exist")
         });
         new_players.append(&mut bench.iter().map(|&p| p.id).collect::<Vec<PlayerId>>());
@@ -1038,5 +1052,85 @@ impl Team {
         } else {
             self.player_ids.len() as u32
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Builds a player with uniform skills - so `position_skill_rating` is identical for
+    // every position - and the given per-position fitness. `fitness` entries are in
+    // [0, 1]; `game_position_fitness` is stored on the 0..MAX_SKILL scale.
+    fn make_player(skill: f32, fitness: [f32; NUM_GAME_POSITIONS as usize]) -> Player {
+        let mut p = Player::default();
+        p.athletics = Athletics {
+            quickness: skill,
+            vertical: skill,
+            strength: skill,
+            stamina: skill,
+        };
+        p.offense = Offense {
+            brawl: skill,
+            close_range: skill,
+            medium_range: skill,
+            long_range: skill,
+        };
+        p.defense = Defense {
+            steal: skill,
+            block: skill,
+            perimeter_defense: skill,
+            interior_defense: skill,
+        };
+        p.technical = Technical {
+            passing: skill,
+            ball_handling: skill,
+            post_moves: skill,
+            rebounds: skill,
+        };
+        p.mental = Mental {
+            vision: skill,
+            aggression: skill,
+            intuition: skill,
+            charisma: skill,
+        };
+        p.game_position_fitness = fitness.map(|f| f * MAX_SKILL);
+        p
+    }
+
+    // The team's game position fluidity reshapes how strongly position fitness is
+    // weighted (`fitness.powf(exponent)`: Low=1.5 widens the gap between good and bad
+    // fits, High=0.6 narrows it), which can flip the optimal starting-five assignment.
+    //
+    // P2/P3/P4 are locked to positions 2/3/4 (they have nonzero fitness only there).
+    // P0 and P1 compete for positions 0 and 1:
+    //   P0 fitness: pos0=1.0, pos1=0.6     P1 fitness: pos0=0.7, pos1=0.2
+    // With uniform skills every `position_skill_rating` is equal, so each player's
+    // in-game rating is `roll + 2 * skill * fitness^exponent` and the comparison
+    // reduces to the sum of `fitness^exponent`. The two candidate sub-assignments:
+    //   "extreme"  P0->0, P1->1:  1.0^e + 0.2^e
+    //   "balanced" P0->1, P1->0:  0.6^e + 0.7^e
+    // Low fluidity (e=1.5, convex) prefers the extreme assignment; High fluidity
+    // (e=0.6, concave) prefers the balanced one.
+    #[test]
+    fn test_fluidity_changes_starting_five() {
+        let skill = 10.0;
+        let p0 = make_player(skill, [1.0, 0.6, 0.0, 0.0, 0.0]);
+        let p1 = make_player(skill, [0.7, 0.2, 0.0, 0.0, 0.0]);
+        let p2 = make_player(skill, [0.0, 0.0, 1.0, 0.0, 0.0]);
+        let p3 = make_player(skill, [0.0, 0.0, 0.0, 1.0, 0.0]);
+        let p4 = make_player(skill, [0.0, 0.0, 0.0, 0.0, 1.0]);
+        let players: Vec<&Player> = vec![&p0, &p1, &p2, &p3, &p4];
+
+        let low = Team::best_position_assignment(players.clone(), GamePositionFluidity::Low);
+        let high = Team::best_position_assignment(players.clone(), GamePositionFluidity::High);
+
+        // Low fluidity -> "extreme" sub-assignment: P0 at pos0, P1 at pos1.
+        assert_eq!(low, vec![p0.id, p1.id, p2.id, p3.id, p4.id]);
+        // High fluidity -> "balanced" sub-assignment: P1 at pos0, P0 at pos1.
+        assert_eq!(high, vec![p1.id, p0.id, p2.id, p3.id, p4.id]);
+
+        // The headline: changing fluidity actually changed the starting five.
+        assert_ne!(low, high);
     }
 }

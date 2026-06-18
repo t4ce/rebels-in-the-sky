@@ -51,7 +51,7 @@ use strum::Display;
 pub const GREEN_STYLE_SKILL: f32 = 16.0;
 
 pub static UP_ARROW_SPAN: LazyLock<Span<'static>> =
-    LazyLock::new(|| Span::styled("↑", UiStyle::HEADER));
+    LazyLock::new(|| Span::styled("↑", MAX_SKILL.style()));
 pub static UP_RIGHT_ARROW_SPAN: LazyLock<Span<'static>> =
     LazyLock::new(|| Span::styled("↗", UiStyle::OK));
 pub static DOWN_ARROW_SPAN: LazyLock<Span<'static>> =
@@ -254,7 +254,9 @@ pub fn drink_button<'a>(world: &World, player_id: &PlayerId) -> AppResult<Button
         },
     )
     .set_hotkey(ui_key::player::DRINK)
-    .set_hover_text("Drink a liter of rum, increasing morale and decreasing energy.");
+    .set_hover_text(
+        "Drink a liter of rum, increasing morale and drunkenness. Drink too much and the pirate could get wasted!",
+    );
 
     if let Err(err) = can_drink {
         button.disable(Some(err.to_string()));
@@ -1486,6 +1488,15 @@ pub fn render_player_description(
         |t| Span::styled(format!("{t}"), t.style()),
     );
 
+    let drunkenness = player.current_drunkenness(world);
+    let drunkenness_span = Player::drunkenness_description(drunkenness).map_or_else(
+        || Span::raw(""),
+        |desc| {
+            let style = ((MAX_SKILL - drunkenness) / MAX_SKILL * GREEN_STYLE_SKILL).style();
+            Span::styled(format!(" {desc}"), style)
+        },
+    );
+
     let line = HoverTextLine::from(vec![
         HoverTextSpan::new(
             Span::raw(format!(
@@ -1497,7 +1508,8 @@ pub fn render_player_description(
         HoverTextSpan::new(
             trait_span,
             player.special_trait.map_or_else(String::new, |t| t.description(player)),
-        )
+        ),
+        HoverTextSpan::new(drunkenness_span, String::new()),
     ]);
     frame.render_interactive_widget(line, header_body_stats[1]);
 
@@ -1526,16 +1538,38 @@ pub fn render_player_description(
         header_body_stats[2],
     );
 
-    let tiredness = player.current_tiredness(world);
-    let tiredness_length = (tiredness / MAX_SKILL * BARS_LENGTH as f32).round() as usize;
-    let energy_string = format!(
-        "{}{}",
-        "▰".repeat(BARS_LENGTH.saturating_sub(tiredness_length)),
-        "▱".repeat(tiredness_length),
-    );
-    let energy_style = ((MAX_SKILL - tiredness) / MAX_SKILL * GREEN_STYLE_SKILL).style();
+    if drunkenness < 0.0 {
+        let drunkenness_length =
+            (drunkenness / DRUNKENNESS_ON_GETTING_DRUNK * BARS_LENGTH as f32).round() as usize;
+        let drunkenness_string = format!(
+            "{}{}",
+            "▰".repeat(drunkenness_length),
+            "▱".repeat(BARS_LENGTH.saturating_sub(drunkenness_length)),
+        );
+        let style = UiStyle::ERROR;
 
-    frame.render_interactive_widget(
+        frame.render_interactive_widget(
+        HoverTextLine::from(vec![
+            HoverTextSpan::new(
+                Span::raw("Drunk  ".to_string()),
+                format!("{} is drunk! While {} {} getting sober, tiredness is not recovered (current value {:.2})", player.info.full_name(), player.info.pronouns.as_subject().to_lowercase(), player.info.pronouns.to_be(), -drunkenness),
+            ),
+            HoverTextSpan::new(Span::styled( drunkenness_string, style),"", 
+           ),
+        ]),
+        header_body_stats[3],
+    );
+    } else {
+        let tiredness = player.current_tiredness(world);
+        let tiredness_length = (tiredness / MAX_SKILL * BARS_LENGTH as f32).round() as usize;
+        let energy_string = format!(
+            "{}{}",
+            "▰".repeat(BARS_LENGTH.saturating_sub(tiredness_length)),
+            "▱".repeat(tiredness_length),
+        );
+        let energy_style = ((MAX_SKILL - tiredness) / MAX_SKILL * GREEN_STYLE_SKILL).style();
+
+        frame.render_interactive_widget(
         HoverTextLine::from(vec![
             HoverTextSpan::new(
                 Span::raw("Energy ".to_string()),
@@ -1546,6 +1580,7 @@ pub fn render_player_description(
         ]),
         header_body_stats[3],
     );
+    }
 
     frame.render_widget(
         Paragraph::new(format!(
@@ -1606,17 +1641,22 @@ pub fn upgrade_resources_lines<'a, U: UpgradeableElement>(
 }
 
 fn improvement_indicator<'a>(skill: f32, previous: f32) -> Span<'a> {
-    // We only update at the end of the day, so we can display if something went recently up or not.
-    if skill.value() > previous.value() {
-        UP_ARROW_SPAN.clone()
-    } else if skill > previous + 0.33 {
-        UP_RIGHT_ARROW_SPAN.clone()
-    } else if skill.value() < previous.value() {
-        DOWN_ARROW_SPAN.clone()
-    } else if skill < previous - 0.33 {
-        DOWN_RIGHT_ARROW_SPAN.clone()
-    } else {
-        Span::styled(" ", UiStyle::DEFAULT)
+    let delta = (skill - previous) / TREND_WINDOW_DAYS;
+
+    match delta {
+        d if d >= TREND_STRONG_UP => UP_ARROW_SPAN.clone(),
+        d if d >= TREND_WEAK_UP => UP_RIGHT_ARROW_SPAN.clone(),
+        d if d <= -TREND_STRONG_DOWN => DOWN_ARROW_SPAN.clone(),
+        d if d <= -TREND_WEAK_DOWN => DOWN_RIGHT_ARROW_SPAN.clone(),
+        _ => {
+            // If previous was at MAX_SKILL and skill < previous, display down-right arrow,
+            // so there is a visual indicator that the stat dropped (which at 20 can happen easily).
+            if previous == MAX_SKILL && skill.value() < previous.value() {
+                DOWN_RIGHT_ARROW_SPAN.clone()
+            } else {
+                Span::raw(" ")
+            }
+        }
     }
 }
 
@@ -1624,28 +1664,37 @@ fn format_player_skills(player: &'_ Player) -> Vec<Line<'_>> {
     let skills = player.current_skill_array();
     let mut text = vec![];
     let mut roles = (0..NUM_GAME_POSITIONS)
-        .map(|i: GamePosition| (i.as_str().to_string(), player.position_rating(i)))
-        .collect::<Vec<(String, f32)>>();
+        .map(|i: GamePosition| {
+            (
+                i.as_role().to_string(),
+                player.game_position_fitness[i as usize],
+                player.previous_game_position_fitness[i as usize],
+            )
+        })
+        .collect::<Vec<(String, Skill, Skill)>>();
     roles.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
 
     let mut spans = vec![];
     spans.push(Span::styled(
-        format!("{:<2} {:<5}          ", roles[0].0, roles[0].1.stars()),
+        format!("{:<2} {:<5} ", roles[0].0, roles[0].1.stars()),
         roles[0].1.style(),
     ));
+    spans.push(improvement_indicator(roles[0].1, roles[0].2));
+    spans.push(Span::raw("        "));
     spans.push(Span::styled(
         format!("Athletics {:<5}", player.athletics.stars()),
         player.athletics.rating().style(),
     ));
     text.push(Line::from(spans));
 
-    for i in 0..4 {
+    for i in 0..NUM_GAME_POSITIONS as usize - 1 {
         let mut spans = vec![];
         spans.push(Span::styled(
-            format!("{:<2} {:<5}       ", roles[i + 1].0, roles[i + 1].1.stars()),
+            format!("{:<2} {:<5} ", roles[i + 1].0, roles[i + 1].1.stars()),
             roles[i + 1].1.style(),
         ));
-
+        spans.push(improvement_indicator(roles[i].1, roles[i].2));
+        spans.push(Span::raw("     "));
         spans.push(Span::styled(
             format!(
                 "   {:<MAX_NAME_LENGTH$}{:02} ",

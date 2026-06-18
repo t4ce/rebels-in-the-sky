@@ -116,7 +116,7 @@ impl PlayerView {
 
                 player_team_planet_id == own_team_planet_id
             }
-            Self::OwnTeam => player.team.is_some() && player.team.unwrap() == own_team.id,
+            Self::OwnTeam => matches!(player.team, Some(id) if id == own_team.id),
         }
     }
 }
@@ -145,6 +145,7 @@ pub struct PlayerListPanel {
     update_view: bool,
     tick: usize,
     gif_map: GifMap,
+    players_list_state: ClickableListState,
 }
 
 impl PlayerListPanel {
@@ -152,7 +153,7 @@ impl PlayerListPanel {
         Self::default()
     }
 
-    fn build_left_panel(&self, frame: &mut UiFrame, world: &World, area: Rect) {
+    fn build_left_panel(&mut self, frame: &mut UiFrame, world: &World, area: Rect) {
         let split = Layout::vertical([
             Constraint::Length(3),
             Constraint::Length(3),
@@ -236,10 +237,11 @@ impl PlayerListPanel {
                 options.push((text, style));
             }
             let list = selectable_list(options);
+            self.players_list_state.select(self.index);
             frame.render_stateful_interactive_widget(
                 list.block(default_block().title("Pirates ↓/↑")),
                 split[4],
-                &mut ClickableListState::default().with_selected(self.index),
+                &mut self.players_list_state,
             );
         } else {
             frame.render_widget(default_block().title("Pirates"), split[4]);
@@ -453,8 +455,11 @@ impl PlayerListPanel {
                 .block(default_block().border_style(UiStyle::OK))
                 .set_hotkey(ui_key::ACCEPT_TRADE);
 
-                let can_trade =
-                    proposer_team.can_trade_players(proposer_player, target_player, own_team);
+                let can_trade = proposer_team.can_trade_players_with_team(
+                    proposer_player,
+                    target_player,
+                    own_team,
+                );
 
                 if let Err(err) = can_trade {
                     button.disable(Some(err.to_string()));
@@ -488,7 +493,7 @@ impl PlayerListPanel {
                 if let Some(target_team_id) = target_player.team {
                     let target_team = world.teams.get_or_err(&target_team_id)?;
                     if own_team
-                        .can_trade_players(proposer_player, target_player, target_team)
+                        .can_trade_players_with_team(proposer_player, target_player, target_team)
                         .is_ok()
                     {
                         let mut trade_button = Button::new(
@@ -524,6 +529,8 @@ impl PlayerListPanel {
     pub const fn set_view(&mut self, filter: PlayerView) {
         self.view = filter;
         self.update_view = true;
+        self.index = None;
+        self.players_list_state.reset_offset();
     }
 
     pub const fn reset_view(&mut self) {

@@ -10,9 +10,7 @@ use super::{
     traits::{Screen, SplitPanel},
     ui_screen::UiTab,
     utils::img_to_lines,
-    widgets::{
-        default_block, selectable_list, DOWN_ARROW_SPAN, SWITCH_ARROW_SPAN, UP_ARROW_SPAN,
-    },
+    widgets::{default_block, selectable_list, DOWN_ARROW_SPAN, SWITCH_ARROW_SPAN, UP_ARROW_SPAN},
 };
 use crate::store::load_game;
 use crate::types::HashMapWithResult;
@@ -61,6 +59,8 @@ pub struct GamePanel {
     action_results_len: usize,
     tick: usize,
     gif_map: GifMap,
+    games_list_state: ClickableListState,
+    local_games_list_state: ClickableListState,
 }
 
 impl GamePanel {
@@ -160,7 +160,7 @@ impl GamePanel {
         Ok(())
     }
 
-    fn build_game_list(&self, frame: &mut UiFrame, world: &World, area: Rect) {
+    fn build_game_list(&mut self, frame: &mut UiFrame, world: &World, area: Rect) {
         let maybe_options = self
             .game_ids
             .iter()
@@ -194,15 +194,12 @@ impl GamePanel {
 
             let list_index = self.index.filter(|&index| index < self.game_ids.len());
 
-            frame.render_stateful_interactive_widget(
-                list,
-                area,
-                &mut ClickableListState::default().with_selected(list_index),
-            );
+            self.games_list_state.select(list_index);
+            frame.render_stateful_interactive_widget(list, area, &mut self.games_list_state);
         }
     }
 
-    fn build_recent_games_list(&self, frame: &mut UiFrame, world: &World, area: Rect) {
+    fn build_recent_games_list(&mut self, frame: &mut UiFrame, world: &World, area: Rect) {
         let maybe_options = self
             .recent_game_ids
             .iter()
@@ -251,11 +248,8 @@ impl GamePanel {
                 .filter(|&index| index >= self.game_ids.len())
                 .map(|index| index - self.game_ids.len());
 
-            frame.render_stateful_interactive_widget(
-                list,
-                area,
-                &mut ClickableListState::default().with_selected(list_index),
-            );
+            self.local_games_list_state.select(list_index);
+            frame.render_stateful_interactive_widget(list, area, &mut self.local_games_list_state);
         }
     }
 
@@ -772,7 +766,7 @@ impl GamePanel {
             plus_minus_total += player_data.plus_minus as i16;
 
             let role = match player_data.position {
-                Some(p) => (p as GamePosition).as_str().to_string(),
+                Some(p) => (p as GamePosition).as_role().to_string(),
                 None => "".to_string(),
             };
 
@@ -872,7 +866,7 @@ impl GamePanel {
             let player_data = &players_data[&player.id];
 
             let role = match player_data.position {
-                Some(p) => (p as GamePosition).as_str().to_string(),
+                Some(p) => (p as GamePosition).as_role().to_string(),
                 None => "".to_string(),
             };
 
@@ -1012,19 +1006,73 @@ impl GamePanel {
         frame.render_widget(default_block(), box_area[0]);
         frame.render_widget(home_table, home_box_split[0]);
         frame.render_widget(
-            Span::styled(
-                format!("   Tactic: {}", game.home_team_in_game.tactic),
-                UiStyle::HIGHLIGHT,
-            ),
+            Line::from(vec![
+                Span::raw("   Tactic:"),
+                Span::styled(
+                    format!("{:<11}  ", game.home_team_in_game.tactic.to_string()),
+                    UiStyle::HIGHLIGHT,
+                ),
+                Span::raw("Substitutions:"),
+                Span::styled(
+                    format!(
+                        "{:6}  ",
+                        game.home_team_in_game.substitution_tendency.to_string()
+                    ),
+                    UiStyle::HIGHLIGHT,
+                ),
+                Span::raw("Fluidity:"),
+                Span::styled(
+                    format!(
+                        "{:6}  ",
+                        game.home_team_in_game.game_position_fluidity.to_string()
+                    ),
+                    UiStyle::HIGHLIGHT,
+                ),
+                Span::raw("Rum:"),
+                Span::styled(
+                    format!(
+                        "{}/{}",
+                        game.home_team_in_game.rum, game.home_team_in_game.initial_rum
+                    ),
+                    UiStyle::HIGHLIGHT,
+                ),
+            ]),
             home_box_split[1],
         );
         frame.render_widget(default_block(), box_area[1]);
         frame.render_widget(away_table, away_box_split[0]);
         frame.render_widget(
-            Span::styled(
-                format!("   Tactic: {}", game.away_team_in_game.tactic),
-                UiStyle::HIGHLIGHT,
-            ),
+            Line::from(vec![
+                Span::raw("   Tactic:"),
+                Span::styled(
+                    format!("{:11}  ", game.away_team_in_game.tactic.to_string()),
+                    UiStyle::HIGHLIGHT,
+                ),
+                Span::raw("Substitutions:"),
+                Span::styled(
+                    format!(
+                        "{:6}  ",
+                        game.away_team_in_game.substitution_tendency.to_string()
+                    ),
+                    UiStyle::HIGHLIGHT,
+                ),
+                Span::raw("Fluidity:"),
+                Span::styled(
+                    format!(
+                        "{:6}  ",
+                        game.away_team_in_game.game_position_fluidity.to_string()
+                    ),
+                    UiStyle::HIGHLIGHT,
+                ),
+                Span::raw("Rum:"),
+                Span::styled(
+                    format!(
+                        "{}/{}",
+                        game.away_team_in_game.rum, game.away_team_in_game.initial_rum
+                    ),
+                    UiStyle::HIGHLIGHT,
+                ),
+            ]),
             away_box_split[1],
         );
     }
@@ -1307,7 +1355,8 @@ impl Screen for GamePanel {
                 )),
                 Line::from(format!(
                     "   {}/{}        Scroll commentary  /  Enter scrolls to top",
-                    ui_key::PREVIOUS_SELECTION, ui_key::NEXT_SELECTION
+                    ui_key::PREVIOUS_SELECTION,
+                    ui_key::NEXT_SELECTION
                 )),
                 Line::from("   0-4        Filter pitch view by quarter"),
                 Line::from(format!(

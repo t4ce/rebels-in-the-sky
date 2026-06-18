@@ -59,7 +59,7 @@ pub struct Player {
     pub current_location: PlayerLocation,
     pub skills_training: [Skill; 20],
     pub previous_skills: [Skill; 20], // This is for displaying purposes to show the skills that were recently modified
-    // pub skills_potential: [Skill; 20], // Each skill has a separate potential. For retrocompatibility reasons, we allow this array to be all zeros, in which case we initialize it during deserialization.
+    pub previous_game_position_fitness: [Skill; NUM_GAME_POSITIONS as usize], // This is for displaying purposes to show the game positions that were recently modified
     pub game_position_fitness: [Skill; NUM_GAME_POSITIONS as usize],
     pub game_position_fitness_training: [Skill; NUM_GAME_POSITIONS as usize],
     pub training_focus: Option<TrainingFocus>,
@@ -90,6 +90,7 @@ impl Default for Player {
             current_location: PlayerLocation::default(),
             skills_training: [Skill::default(); 20],
             previous_skills: [Skill::default(); 20],
+            previous_game_position_fitness: [Skill::default(); NUM_GAME_POSITIONS as usize],
             game_position_fitness: [Skill::default(); NUM_GAME_POSITIONS as usize],
             game_position_fitness_training: [Skill::default(); NUM_GAME_POSITIONS as usize],
             training_focus: None,
@@ -108,7 +109,7 @@ impl Serialize for Player {
         // and serialize them in a vector which is then deserialized
         // into the corresponding fields
         let compact_skills = self.current_skill_array().to_vec();
-        let mut state = serializer.serialize_struct("Player", 18)?;
+        let mut state = serializer.serialize_struct("Player", 19)?;
         state.serialize_field("id", &self.id)?;
         state.serialize_field("peer_id", &self.peer_id)?;
         state.serialize_field("version", &self.version)?;
@@ -125,6 +126,10 @@ impl Serialize for Player {
         state.serialize_field("morale", &self.morale)?;
         state.serialize_field("drunkenness", &self.drunkenness)?;
         state.serialize_field("compact_skills", &compact_skills)?;
+        state.serialize_field(
+            "previous_game_position_fitness",
+            &self.previous_game_position_fitness,
+        )?;
         state.serialize_field("game_position_fitness", &self.game_position_fitness)?;
         state.serialize_field(
             "game_position_fitness_training",
@@ -153,6 +158,7 @@ impl<'de> Deserialize<'de> for Player {
             Image,
             CurrentLocation,
             PreviousSkills,
+            PreviousGamePositionFitness,
             SkillsTraining,
             GamePositionFitness,
             GamePositionFitnessTraining,
@@ -191,6 +197,9 @@ impl<'de> Deserialize<'de> for Player {
                             "image" => Ok(Field::Image),
                             "current_location" => Ok(Field::CurrentLocation),
                             "previous_skills" => Ok(Field::PreviousSkills),
+                            "previous_game_position_fitness" => {
+                                Ok(Field::PreviousGamePositionFitness)
+                            }
                             "skills_training" => Ok(Field::SkillsTraining),
                             "game_position_fitness" => Ok(Field::GamePositionFitness),
                             "game_position_fitness_training" => {
@@ -236,6 +245,7 @@ impl<'de> Deserialize<'de> for Player {
                 let mut current_location = None;
                 let mut skills_training = None;
                 let mut previous_skills = None;
+                let mut previous_game_position_fitness = None;
                 let mut game_position_fitness = None;
                 let mut game_position_fitness_training = None;
                 let mut training_focus = None;
@@ -319,6 +329,14 @@ impl<'de> Deserialize<'de> for Player {
                             }
                             previous_skills = Some(map.next_value()?);
                         }
+                        Field::PreviousGamePositionFitness => {
+                            if previous_game_position_fitness.is_some() {
+                                return Err(serde::de::Error::duplicate_field(
+                                    "previous_game_position_fitness",
+                                ));
+                            }
+                            previous_game_position_fitness = Some(map.next_value()?);
+                        }
                         Field::GamePositionFitness => {
                             if game_position_fitness.is_some() {
                                 return Err(serde::de::Error::duplicate_field(
@@ -395,6 +413,10 @@ impl<'de> Deserialize<'de> for Player {
                     .ok_or_else(|| serde::de::Error::missing_field("previous_skills"))?;
 
                 let game_position_fitness = game_position_fitness.unwrap_or_default();
+                // If absent (old save), fall back to the current fitness so nothing is
+                // spuriously highlighted as a recent change.
+                let previous_game_position_fitness =
+                    previous_game_position_fitness.unwrap_or(game_position_fitness);
                 let game_position_fitness_training =
                     game_position_fitness_training.unwrap_or_default();
                 let training_focus = training_focus.unwrap_or_default();
@@ -424,6 +446,7 @@ impl<'de> Deserialize<'de> for Player {
                     current_location,
                     skills_training,
                     previous_skills,
+                    previous_game_position_fitness,
                     game_position_fitness,
                     game_position_fitness_training,
                     training_focus,
@@ -489,6 +512,7 @@ impl<'de> Deserialize<'de> for Player {
             "current_location",
             "skills_training",
             "previous_skills",
+            "previous_game_position_fitness",
             "game_position_fitness",
             "training_focus",
             "tiredness",
@@ -587,6 +611,7 @@ impl Player {
         self.previous_skills = self.current_skill_array();
 
         self.set_initial_game_position_fitness(Some(rng));
+        self.previous_game_position_fitness = self.game_position_fitness;
 
         // Extra potential has a variance that depends on current age
         let std_dev = 1.5 + 3.0 * (1.0 - self.info.relative_age());
@@ -667,30 +692,32 @@ impl Player {
         };
         let positions_by_skill_fitness = (0..NUM_GAME_POSITIONS)
             .sorted_by(|&a, &b| {
-                self.position_rating(b)
-                    .partial_cmp(&self.position_rating(a))
+                self.position_skill_rating(b)
+                    .partial_cmp(&self.position_skill_rating(a))
                     .expect("There should be an ordering")
             })
             .collect_vec();
 
-        // NOTE: this function is called only during initialization, so the relevant value is the intuition at initialization
-        // (potential does not change).
-        let bonus_fitness = 0.15 * (0.5 * self.mental.intuition + 0.5 * self.potential)
-            + self.info.population.bonus_base_fitness();
         let std_dev = 4.0;
-        for i in 0..NUM_GAME_POSITIONS as usize {
-            let mean = BASE_FITNESS[i] + bonus_fitness; //Can be larger than MAX_SKILL
+        for rank in 0..NUM_GAME_POSITIONS {
+            // NOTE: this function is called only during initialization, so the relevant value is the intuition at initialization
+            // (potential does not change).
+            let position = positions_by_skill_fitness[rank as usize];
+            let bonus_fitness = 3.0 * (0.5 * self.mental.intuition + 0.5 * self.potential)
+                / MAX_SKILL
+                + self.info.population.bonus_game_position_fitness(position);
+            let mean = BASE_FITNESS[rank as usize] + bonus_fitness; //Can be larger than MAX_SKILL
             let normal =
                 Normal::new(mean, std_dev).expect("Should create valid normal distribution");
             let value = normal.sample(rng).bound();
-            let position = positions_by_skill_fitness[i] as usize;
-            self.game_position_fitness[position] = value;
+            self.game_position_fitness[position as usize] = value;
         }
     }
 
-    pub fn increase_game_position_fitness(&mut self) {}
-
-    pub fn position_rating(&self, position: GamePosition) -> Skill {
+    // Skill-only rating, ignoring game position fitness. Used to order positions
+    // when assigning the initial fitness (which is not set yet at that point) and
+    // by the game engine to apply the fitness with the fluidity exponent on top.
+    pub(crate) fn position_skill_rating(&self, position: GamePosition) -> Skill {
         let mut rating = 0 as f32;
         let weights = position.weights();
         let mut total_weight = 0 as f32;
@@ -700,15 +727,17 @@ impl Player {
             total_weight += w;
         }
 
-        // FIXME: add position fitness here at next major version
-        // let fitness = self
-        //     .game_position_fitness
-        //     .get(position as usize)
-        //     .copied()
-        //     .unwrap_or_default()
-        //     / MAX_SKILL;
-        // (rating / total_weight * fitness).bound()
         (rating / total_weight).bound()
+    }
+
+    pub fn position_rating(&self, position: GamePosition) -> Skill {
+        let fitness = self
+            .game_position_fitness
+            .get(position as usize)
+            .copied()
+            .unwrap_or_default()
+            / MAX_SKILL;
+        self.position_skill_rating(position) * fitness
     }
 
     pub fn best_position(&self) -> GamePosition {
@@ -732,50 +761,31 @@ impl Player {
             .expect("There should be 20 skills")
     }
 
-    pub fn current_tiredness(&self, world: &World) -> f32 {
-        let mut tiredness = self.tiredness;
-        // Check if player is currently playing.
-        // In this case, read current tiredness from game.
-        if let Some(team_id) = self.team {
-            if let Ok(team) = world.teams.get_or_err(&team_id) {
-                if let Some(game_id) = team.current_game {
-                    if let Ok(game) = world.games.get_or_err(&game_id) {
-                        if let Some(p) = if game.home_team_in_game.team_id == team_id {
-                            game.home_team_in_game.players.get(&self.id)
-                        } else {
-                            game.away_team_in_game.players.get(&self.id)
-                        } {
-                            tiredness = p.tiredness;
-                        }
-                    }
-                }
-            }
+    // If the player is currently playing a game, returns the in-game copy of the player,
+    // which carries the live tiredness, morale and drunkenness.
+    fn in_game_copy<'a>(&self, world: &'a World) -> Option<&'a Player> {
+        let team_id = self.team?;
+        let team = world.teams.get(&team_id)?;
+        let game = world.games.get(&team.current_game?)?;
+        if game.home_team_in_game.team_id == team_id {
+            game.home_team_in_game.players.get(&self.id)
+        } else {
+            game.away_team_in_game.players.get(&self.id)
         }
+    }
 
-        tiredness
+    pub fn current_tiredness(&self, world: &World) -> f32 {
+        self.in_game_copy(world)
+            .map_or(self.tiredness, |p| p.tiredness)
     }
 
     pub fn current_morale(&self, world: &World) -> f32 {
-        let mut morale = self.morale;
-        // Check if player is currently playing.
-        // In this case, read current morale from game.
-        if let Some(team_id) = self.team {
-            if let Ok(team) = world.teams.get_or_err(&team_id) {
-                if let Some(game_id) = team.current_game {
-                    if let Ok(game) = world.games.get_or_err(&game_id) {
-                        if let Some(p) = if game.home_team_in_game.team_id == team_id {
-                            game.home_team_in_game.players.get(&self.id)
-                        } else {
-                            game.away_team_in_game.players.get(&self.id)
-                        } {
-                            morale = p.morale;
-                        }
-                    }
-                }
-            }
-        }
+        self.in_game_copy(world).map_or(self.morale, |p| p.morale)
+    }
 
-        morale
+    pub fn current_drunkenness(&self, world: &World) -> f32 {
+        self.in_game_copy(world)
+            .map_or(self.drunkenness, |p| p.drunkenness)
     }
 
     pub fn can_drink(&self, world: &World) -> AppResult<()> {
@@ -791,13 +801,8 @@ impl Player {
             return Err(anyhow!("Can't drink during game"));
         }
 
-        // Spugna can drink ad libitum
-        if self.morale == MAX_SKILL && !matches!(self.special_trait, Some(Trait::Spugna)) {
-            return Err(anyhow!("No need to drink"));
-        }
-
-        if self.tiredness == MAX_SKILL {
-            return Err(anyhow!("No energy to drink"));
+        if self.is_knocked_out() {
+            return Err(anyhow!("Too wasted to drink"));
         }
 
         if team.resources.value(&Resource::RUM) == 0 {
@@ -805,6 +810,51 @@ impl Player {
         }
 
         Ok(())
+    }
+
+    /// Drink one liter of rum, increasing drunkenness and boosting morale.
+    /// There is a chance, growing with drunkenness, that the player gets fully drunk:
+    /// in that case tiredness goes to max (the player is wasted), drunkenness resets
+    /// and morale is unaffected (happy to get drunk ;) ). Returns whether the player got fully drunk.
+    pub fn drink(&mut self, rng: &mut ChaCha8Rng) -> bool {
+        let amount = if self.special_trait == Some(Trait::Spugna) {
+            // Spugna gets drunk 10 times as slow.
+            SPUGNA_DRUNKENNESS_PER_DRINK
+        } else {
+            DRUNKENNESS_PER_DRINK
+        };
+        self.drunkenness = (self.drunkenness + amount).bound();
+
+        // Probability equal to the new drunkenness over MAX_SKILL,
+        // mitigated by stamina: high-stamina players hold their liquor.
+        let drunk_probability = BASE_DRUNK_PROBABILITY
+            * ((self.drunkenness / MAX_SKILL) / (1.0 + self.athletics.stamina / MAX_SKILL)) as f64;
+        if rng.random_bool(drunk_probability) {
+            // Wasted: tiredness is set directly rather than through add_tiredness,
+            // since morale must be unaffected and trait caps must not prevent it.
+            self.tiredness = MAX_SKILL;
+            self.drunkenness = if self.special_trait == Some(Trait::Spugna) {
+                // Spugna gets less drunk.
+                SPUGNA_DRUNKENNESS_ON_GETTING_DRUNK
+            } else {
+                DRUNKENNESS_ON_GETTING_DRUNK
+            };
+            return true;
+        }
+
+        self.add_morale(MORALE_DRINK_BONUS);
+        false
+    }
+
+    // Returns None when the player is sober (nothing worth displaying).
+    pub fn drunkenness_description(drunkenness: Skill) -> Option<&'static str> {
+        match drunkenness {
+            x if x < 4.0 => None,
+            x if x < 8.0 => Some("Tipsy"),
+            x if x < 12.0 => Some("Merry"),
+            x if x < 16.0 => Some("Inebriated"),
+            _ => Some("Sloshed"),
+        }
     }
 
     pub fn bare_hiring_value(&self) -> f32 {
@@ -1019,6 +1069,8 @@ impl Player {
 
         if self.is_knocked_out() {
             self.morale = MIN_SKILL;
+            // A wasted player sobers up completely.
+            self.drunkenness = MIN_SKILL;
         }
     }
 
@@ -1189,13 +1241,6 @@ impl Player {
 
         log::debug!("Total Experience increase: {:#?}", self.skills_training);
     }
-
-    pub fn tiredness_weighted_rating(&self) -> f32 {
-        if self.is_knocked_out() {
-            return 0.0;
-        }
-        self.average_skill() * (MAX_SKILL - self.tiredness / 2.0)
-    }
 }
 
 impl Rated for Player {
@@ -1323,7 +1368,7 @@ impl Trait {
                     player.reputation.value()
                 )
             }
-            Trait::Spugna => "Immediately maximizes morale when drinking. It is said that a drunk pilot could bring you somewhere unexpected...".to_string(),
+            Trait::Spugna => "Gets drunk 10 times as slow when drinking. It is said that a drunk pilot could bring you somewhere unexpected...".to_string(),
             Trait::Crumiro => "Legendary trait of the emperor's crew members".to_string(),
         }
     }
@@ -1331,13 +1376,64 @@ impl Trait {
 
 #[cfg(test)]
 mod test {
+    use super::{Player, Trait};
     use crate::{
         app::App,
-        core::skill::Rated,
+        core::{
+            constants::{
+                DRUNKENNESS_ON_GETTING_DRUNK, DRUNKENNESS_PER_DRINK, SPUGNA_DRUNKENNESS_PER_DRINK,
+            },
+            skill::{Rated, MAX_SKILL, MIN_SKILL},
+        },
         types::{AppResult, HashMapWithResult},
     };
     use itertools::Itertools;
-    use serde::{Deserialize, Serialize};
+    use rand::SeedableRng;
+    use rand_chacha::ChaCha8Rng;
+
+    #[test]
+    fn test_drink() -> AppResult<()> {
+        let rng = &mut ChaCha8Rng::seed_from_u64(0);
+
+        // Drinking increases drunkenness and boosts morale, but does not drain energy.
+        let mut player = Player::default();
+        player.athletics.stamina = MAX_SKILL;
+        let got_drunk = player.drink(rng);
+        assert!(!got_drunk);
+        assert!(player.drunkenness == DRUNKENNESS_PER_DRINK);
+        assert!(player.morale > MIN_SKILL);
+        assert!(player.tiredness == MIN_SKILL);
+
+        // Spugna gets drunk 10 times as slow.
+        let mut spugna = Player::default();
+        spugna.athletics.stamina = MAX_SKILL;
+        spugna.special_trait = Some(Trait::Spugna);
+        let got_drunk = spugna.drink(rng);
+        assert!(!got_drunk);
+        assert!(spugna.drunkenness == SPUGNA_DRUNKENNESS_PER_DRINK);
+
+        // At max drunkenness and zero stamina the drunk event is guaranteed:
+        // the player gets wasted, drunkenness goes negative and morale is unaffected.
+        let mut player = Player::default();
+        player.drunkenness = MAX_SKILL;
+        player.athletics.stamina = 0.0;
+        player.morale = 10.0;
+        let got_drunk = player.drink(rng);
+        assert!(got_drunk);
+        assert!(player.is_knocked_out());
+        assert!(player.drunkenness == DRUNKENNESS_ON_GETTING_DRUNK);
+        assert!(player.morale == 10.0);
+
+        // Getting knocked out by tiredness also resets drunkenness.
+        let mut player = Player::default();
+        player.drunkenness = 10.0;
+        player.add_tiredness(10.0 * MAX_SKILL);
+        assert!(player.is_knocked_out());
+        assert!(player.drunkenness == MIN_SKILL);
+        assert!(player.morale == MIN_SKILL);
+
+        Ok(())
+    }
 
     #[test]
     fn test_bare_value() -> AppResult<()> {
@@ -1366,37 +1462,6 @@ mod test {
             player.info.age += 0.025 * player.info.population.max_age();
         }
 
-        Ok(())
-    }
-
-    #[ignore]
-    #[test]
-    fn test_players_generation() -> AppResult<()> {
-        let mut app = App::test_default()?;
-
-        let world = &mut app.world;
-
-        let players = world
-            .players
-            .values()
-            .sorted_by(|a, b| a.average_skill().partial_cmp(&b.average_skill()).unwrap())
-            .collect_vec();
-
-        let skills = players.iter().map(|p| p.average_skill()).collect_vec();
-        let potentials = players.iter().map(|p| p.potential).collect_vec();
-
-        #[derive(Serialize, Deserialize)]
-        struct GenerationData {
-            skills: Vec<f32>,
-            potentials: Vec<f32>,
-        }
-
-        let data = GenerationData { skills, potentials };
-
-        std::fs::write(
-            "./pytests/player_generation.json",
-            serde_json::to_vec(&data)?,
-        )?;
         Ok(())
     }
 

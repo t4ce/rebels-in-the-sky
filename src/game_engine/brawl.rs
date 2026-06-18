@@ -22,11 +22,13 @@ pub(crate) fn execute(
     let weights = attacking_players_array
         .iter()
         .map(|p| {
-            if p.special_trait == Some(Trait::Killer) {
+            let aggression = if p.special_trait == Some(Trait::Killer) {
                 p.mental.aggression.value() * 2
             } else {
                 p.mental.aggression.value()
-            }
+            };
+            // Drunk players are more likely to start a brawl.
+            aggression + p.drunkenness.value()
         })
         .collect::<Vec<u8>>()
         .try_into()
@@ -54,11 +56,13 @@ pub(crate) fn execute(
     let weights = defending_players_array
         .iter()
         .map(|p| {
-            if p.special_trait == Some(Trait::Killer) {
+            let aggression = if p.special_trait == Some(Trait::Killer) {
                 p.mental.aggression.value() * 2
             } else {
                 p.mental.aggression.value()
-            }
+            };
+            // Drunk players are more likely to join a brawl.
+            aggression + p.drunkenness.value()
         })
         .collect::<Vec<u8>>()
         .try_into()
@@ -98,7 +102,7 @@ pub(crate) fn execute(
         ..Default::default()
     };
 
-    let mut atk_result = attacker.roll(action_rng)
+    let mut atk_result = attacker.roll(action_rng, None)
         + (0.5 * attacker.athletics.strength + 0.5 * attacker.mental.aggression).game_value()
         + attacker.offense.brawl.game_value()
         + game
@@ -110,7 +114,7 @@ pub(crate) fn execute(
         atk_result += attacker.reputation.game_value();
     }
 
-    let mut def_result = defender.roll(action_rng)
+    let mut def_result = defender.roll(action_rng, None)
         + (0.5 * defender.athletics.strength + 0.5 * defender.mental.aggression).game_value()
         + defender.offense.brawl.game_value()
         + game
@@ -190,8 +194,8 @@ pub(crate) fn execute(
         0 => {
             attacker_update.extra_tiredness += TirednessCost::HIGH;
             defender_update.extra_tiredness += TirednessCost::HIGH;
-            defender_update.extra_morale += MoraleModifier::SMALL_MALUS;
-            attacker_update.extra_morale += MoraleModifier::SMALL_MALUS;
+            defender_update.extra_morale += MoraleModifier::MEDIUM_MALUS;
+            attacker_update.extra_morale += MoraleModifier::MEDIUM_MALUS;
 
             attacker_update.brawls = [0, 0, 1];
             defender_update.brawls = [0, 0, 1];

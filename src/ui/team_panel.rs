@@ -118,6 +118,7 @@ pub struct TeamListPanel {
     current_team_players_length: usize,
     tick: usize,
     gif_map: GifMap,
+    crews_list_state: ClickableListState,
 }
 
 impl TeamListPanel {
@@ -142,7 +143,7 @@ impl TeamListPanel {
             % self.current_team_players_length;
     }
 
-    fn build_left_panel(&self, frame: &mut UiFrame, world: &World, area: Rect) {
+    fn build_left_panel(&mut self, frame: &mut UiFrame, world: &World, area: Rect) {
         let split = Layout::vertical([
             Constraint::Length(3),
             Constraint::Length(3),
@@ -215,10 +216,11 @@ impl TeamListPanel {
             }
             let list = selectable_list(options);
 
+            self.crews_list_state.select(self.index);
             frame.render_stateful_interactive_widget(
                 list.block(default_block().title("Crews ↓/↑")),
                 split[3],
-                &mut ClickableListState::default().with_selected(self.index),
+                &mut self.crews_list_state,
             );
         } else {
             frame.render_widget(default_block().title("Crews"), split[3]);
@@ -312,7 +314,7 @@ impl TeamListPanel {
             frame.render_widget(
                 Paragraph::new(format!(
                     "{} {}",
-                    (i as GamePosition).as_str(),
+                    (i as GamePosition).as_role(),
                     player.position_rating(i as GamePosition).stars()
                 ))
                 .centered(),
@@ -368,7 +370,7 @@ impl TeamListPanel {
 
                     let role_info = format!(
                         "{:<2} {:<5}",
-                        best_role.as_str(),
+                        best_role.as_role(),
                         player.position_rating(best_role).stars()
                     );
                     let mut button = Button::new(
@@ -452,6 +454,8 @@ impl TeamListPanel {
     pub const fn set_view(&mut self, filter: TeamView) {
         self.view = filter;
         self.update_view = true;
+        self.index = None;
+        self.crews_list_state.reset_offset();
     }
 
     pub const fn reset_view(&mut self) {

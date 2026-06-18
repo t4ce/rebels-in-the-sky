@@ -2,9 +2,9 @@ use super::{action::*, constants::*, game::Game, shot, types::*};
 use crate::core::{
     constants::{MoraleModifier, TirednessCost},
     skill::GameSkill,
-    Pronoun,
+    GamePosition, Pronoun,
 };
-use rand::{RngExt};
+use rand::RngExt;
 use rand_chacha::ChaCha8Rng;
 use std::collections::HashMap;
 
@@ -38,7 +38,7 @@ pub(crate) fn execute(
     };
 
     // Playmaker plays alone
-    let atk_result = playmaker.roll(action_rng)
+    let atk_result = playmaker.roll(action_rng, Some(play_idx as GamePosition))
         + playmaker.athletics.quickness.game_value()
         + (0.5 * playmaker.technical.ball_handling + 0.5 * playmaker.mental.aggression)
             .game_value()
@@ -47,7 +47,7 @@ pub(crate) fn execute(
             .tactic
             .attack_roll_bonus(&Action::Fastbreak);
 
-    let def_result = playmaker_defender.roll(action_rng)
+    let def_result = playmaker_defender.roll(action_rng, Some(play_idx as GamePosition))
         + playmaker_defender.athletics.quickness.game_value()
         + (0.5 * playmaker_defender.mental.aggression
             + 0.25 * playmaker_defender.mental.intuition
@@ -138,7 +138,7 @@ pub(crate) fn execute(
         }
         _ => {
             playmaker_update.turnovers = 1;
-            playmaker_update.extra_morale += MoraleModifier::MEDIUM_MALUS;
+            playmaker_update.extra_morale += MoraleModifier::HIGH_MALUS;
 
             let playmaker_defender_update = GameStats {
                 extra_tiredness: TirednessCost::MEDIUM,

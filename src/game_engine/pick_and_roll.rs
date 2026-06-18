@@ -2,7 +2,7 @@ use super::{action::*, constants::*, game::Game, shot, types::*};
 use crate::core::{
     constants::{MoraleModifier, TirednessCost},
     skill::GameSkill,
-    Player, MAX_SKILL,
+    GamePosition, Player, MAX_SKILL,
 };
 use rand::{seq::IndexedRandom, RngExt};
 use rand_chacha::ChaCha8Rng;
@@ -142,7 +142,7 @@ fn playmaker_uses_the_screen(
         ..Default::default()
     };
 
-    let atk_result = playmaker.roll(action_rng)
+    let atk_result = playmaker.roll(action_rng, Some(play_idx as GamePosition))
         + (0.75 * playmaker.technical.ball_handling + 0.25 * playmaker.athletics.quickness)
             .game_value()
         + (0.5 * screener.athletics.strength + 0.5 * playmaker.mental.intuition).game_value()
@@ -151,7 +151,7 @@ fn playmaker_uses_the_screen(
             .tactic
             .attack_roll_bonus(&Action::PickAndRoll);
 
-    let def_result = playmaker_defender.roll(action_rng)
+    let def_result = playmaker_defender.roll(action_rng, Some(play_idx as GamePosition))
         + playmaker_defender.defense.perimeter_defense.game_value()
         + (0.25 * playmaker_defender.defense.steal
             + 0.5 * playmaker_defender.athletics.quickness
@@ -340,7 +340,7 @@ fn playmaker_uses_the_screen(
             },
                 _ => {
                     playmaker_update.turnovers = 1;
-                    playmaker_update.extra_morale += MoraleModifier::SMALL_MALUS;
+                    playmaker_update.extra_morale += MoraleModifier::MEDIUM_MALUS;
                     playmaker_defender_update.extra_morale += MoraleModifier::SMALL_BONUS;
                     // Equivalent to `- def_result - target_defender.defense.steal.game_value() <= STEAL_LIMIT`
                     let with_steal = def_result + playmaker_defender.defense.steal.game_value() >= -STEAL_LIMIT;
@@ -351,11 +351,7 @@ fn playmaker_uses_the_screen(
                         playmaker_update.extra_morale += MoraleModifier::MEDIUM_MALUS;
                     }
 
-                    let situation = if with_steal && action_rng.random_bool(FASTBREAK_ACTION_PROBABILITY * game.defending_team().tactic.fastbreak_probability_modifier()){
-                        ActionSituation::Fastbreak
-                    } else {
-                        ActionSituation::Turnover
-                    };
+                    let situation = game.fastbreak_or_turnover(with_steal,game.team_momentum(!input.possession), action_rng);
 
                     // After possession flips, the defender who stole is at the same index
                     // as the attacker they were guarding (players are mirrored by position).
@@ -465,7 +461,7 @@ fn playmaker_passes_to_target(
         ..Default::default()
     };
 
-    let atk_result = playmaker.roll(action_rng)
+    let atk_result = playmaker.roll(action_rng, Some(play_idx as GamePosition))
         + (0.25 * playmaker.technical.ball_handling
             + 0.25 * playmaker.mental.vision
             + 0.5 * target.mental.intuition)
@@ -476,7 +472,7 @@ fn playmaker_passes_to_target(
             .tactic
             .attack_roll_bonus(&Action::PickAndRoll);
 
-    let def_result = playmaker_defender.roll(action_rng)
+    let def_result = playmaker_defender.roll(action_rng, Some(play_idx as GamePosition))
         + playmaker_defender.defense.perimeter_defense.game_value()
         + (0.25 * target_defender.athletics.quickness
             + 0.5 * target_defender.mental.intuition
@@ -646,7 +642,7 @@ fn playmaker_passes_to_target(
         },
             _ => {
                 playmaker_update.turnovers = 1;
-                playmaker_update.extra_morale += MoraleModifier::SMALL_MALUS;
+                playmaker_update.extra_morale += MoraleModifier::MEDIUM_MALUS;
                 playmaker_defender_update.extra_morale += MoraleModifier::SMALL_BONUS;
 
                 // Equivalent to `- def_result - target_defender.defense.steal.game_value() <= STEAL_LIMIT`
@@ -658,11 +654,7 @@ fn playmaker_passes_to_target(
                     playmaker_update.extra_morale += MoraleModifier::MEDIUM_MALUS;
                 }
 
-                let situation = if with_steal && action_rng.random_bool(FASTBREAK_ACTION_PROBABILITY * game.defending_team().tactic.fastbreak_probability_modifier()){
-                    ActionSituation::Fastbreak
-                } else {
-                    ActionSituation::Turnover
-                };
+                let situation = game.fastbreak_or_turnover(with_steal,game.team_momentum(!input.possession), action_rng);
 
                 let attackers = if with_steal {
                     vec![play_idx]

@@ -8,7 +8,7 @@ use crate::core::{
     constants::{MoraleModifier, TirednessCost},
     player::Player,
     skill::GameSkill,
-    CrewRole, TeamBonus, Trait, MAX_SKILL,
+    GamePosition, Trait, MAX_SKILL,
 };
 use rand::{seq::IndexedRandom, RngExt};
 use rand_chacha::ChaCha8Rng;
@@ -556,8 +556,9 @@ fn execute_shot(
     };
     let def_skill = defenders
         .iter()
-        .map(|&p| {
-            p.roll(action_rng) / defenders.len() as i16
+        .zip(input.defenders.iter())
+        .map(|(&p, &def_idx)| {
+            p.roll(action_rng, Some(def_idx as GamePosition)) / defenders.len() as i16
                 + if p.is_knocked_out() {
                     0
                 } else {
@@ -568,14 +569,21 @@ fn execute_shot(
 
     let roll = match input.advantage {
         Advantage::Attack => {
-            (shooter.roll(action_rng).max(shooter.roll(action_rng)) + atk_skill)
+            (shooter
+                .roll(action_rng, Some(shooter_idx as GamePosition))
+                .max(shooter.roll(action_rng, Some(shooter_idx as GamePosition)))
+                + atk_skill)
                 - (shot_difficulty as i16 + def_skill)
         }
         Advantage::Neutral => {
-            (shooter.roll(action_rng) + atk_skill) - (shot_difficulty as i16 + def_skill)
+            (shooter.roll(action_rng, Some(shooter_idx as GamePosition)) + atk_skill)
+                - (shot_difficulty as i16 + def_skill)
         }
         Advantage::Defense => {
-            (shooter.roll(action_rng).min(shooter.roll(action_rng)) + atk_skill)
+            (shooter
+                .roll(action_rng, Some(shooter_idx as GamePosition))
+                .min(shooter.roll(action_rng, Some(shooter_idx as GamePosition)))
+                + atk_skill)
                 - (shot_difficulty as i16 + def_skill)
         }
     };
@@ -762,7 +770,7 @@ fn execute_shot(
         };
 
         if blocked_by.is_some() {
-            shooter_update.extra_morale += MoraleModifier::MEDIUM_MALUS;
+            shooter_update.extra_morale += MoraleModifier::HIGH_MALUS;
         }
     }
 
@@ -786,27 +794,19 @@ fn execute_shot(
     // Add morale modifiers if team scored.
     // These modifiers are applied to the whole team, not only playing players.
     if success {
-        // Conditions for extra morale boost:
-        // shot success, team is losing at most by a certain margin.
-        let team_captain = game
-            .all_attacking_players()
-            .values()
-            .find(|&p| p.info.crew_role == CrewRole::Captain);
-        let losing_margin = 5 * team_captain
-            .map(|p| TeamBonus::Reputation.current_player_bonus(p))
-            .unwrap_or(1.0) as u16;
-        // // Note: this is the score BEFORE the result is applied to the score.
+        // Note: this is the score BEFORE the result is applied to the score.
         let score = game.get_score();
-        let attacking_team_was_losing_by_margin = if input.possession == Possession::Home {
-            score.0 < score.1 && score.1 - score.0 <= losing_margin
+        let attacking_team_was_losing = if input.possession == Possession::Home {
+            score.0 < score.1
         } else {
-            score.1 < score.0 && score.0 - score.1 <= losing_margin
+            score.1 < score.0
         };
 
-        let extra_morale = if attacking_team_was_losing_by_margin {
-            MoraleModifier::MEDIUM_BONUS
-        } else {
-            MoraleModifier::SMALL_BONUS
+        let mut extra_morale =
+            MoraleModifier::SMALL_BONUS + game.team_momentum(input.possession) / MAX_SKILL;
+
+        if attacking_team_was_losing {
+            extra_morale *= 2.0;
         };
 
         for player in game.all_attacking_players().values() {
@@ -820,10 +820,13 @@ fn execute_shot(
         }
 
         for player in game.all_defending_players().values() {
-            let extra_morale = if shot_difficulty == ShotDifficulty::Dunk {
+            let mut extra_morale = if shot_difficulty == ShotDifficulty::Dunk {
                 MoraleModifier::HIGH_MALUS
             } else {
                 MoraleModifier::SMALL_MALUS
+            };
+            if attacking_team_was_losing {
+                extra_morale *= 1.25;
             };
 
             defense_stats_update

@@ -13,7 +13,7 @@ use super::{
 use crate::app_version;
 use crate::core::{AsteroidUpgradeTarget, UpgradeableElement};
 use crate::game_engine::game::Game;
-use crate::game_engine::types::{GamePositionFluidity, SubstitutionTendency};
+use crate::game_engine::types::{GamePositionFluidity, InGameDrinking, SubstitutionTendency};
 use crate::game_engine::{Tournament, TournamentId, TournamentType};
 use crate::network::types::TournamentRequestState;
 use crate::network::{challenge::Challenge, trade::Trade};
@@ -29,7 +29,10 @@ use crate::{
     types::{AppCallback, AppResult, GameId, PlanetId, PlayerId, SystemTimeTick, TeamId, Tick},
 };
 use anyhow::anyhow;
-use rand::{seq::IteratorRandom, RngExt, SeedableRng};
+use rand::{
+    seq::{IndexedRandom, IteratorRandom},
+    RngExt, SeedableRng,
+};
 use rand_chacha::ChaCha8Rng;
 use ratatui::crossterm::event::{KeyCode, MouseEvent, MouseEventKind};
 use ratatui::layout::Rect;
@@ -131,6 +134,9 @@ pub enum UiCallback {
     },
     SetTeamGamePositionFluidity {
         game_position_fluidity: GamePositionFluidity,
+    },
+    SetTeamInGameDrinking {
+        in_game_drinking: InGameDrinking,
     },
     SetUiTab {
         ui_tab: UiTab,
@@ -600,7 +606,7 @@ impl UiCallback {
             };
 
             let proposer_player = app.world.players.get_or_err(&proposer_player_id)?;
-            own_team.can_trade_players(proposer_player, target_player, target_team)?;
+            own_team.can_trade_players_with_team(proposer_player, target_player, target_team)?;
 
             // Network trade
             if let Some(peer_id) = target_team.peer_id {
@@ -746,15 +752,16 @@ impl UiCallback {
 
     fn assign_best_team_positions() -> AppCallback {
         Box::new(move |app: &mut App| {
-            let mut team = app.world.get_own_team()?.clone();
+            let team = app.world.teams.get_mut_or_err(&app.world.own_team_id)?;
+            let current_ids = team.player_ids.clone();
             team.player_ids = Team::best_position_assignment(
-                team.player_ids
+                current_ids
                     .iter()
                     .map(|id| app.world.players.get(id).unwrap())
                     .collect(),
+                team.game_position_fluidity,
             );
 
-            app.world.teams.insert(team.id, team);
             app.world.dirty = true;
             app.world.dirty_ui = true;
 
@@ -1280,6 +1287,15 @@ impl UiCallback {
                 Ok(None)
             }
 
+            Self::SetTeamInGameDrinking { in_game_drinking } => {
+                let own_team = app.world.get_own_team_mut()?;
+                own_team.in_game_drinking = *in_game_drinking;
+                app.world.dirty = true;
+                app.world.dirty_ui = true;
+                app.world.dirty_network = true;
+                Ok(None)
+            }
+
             Self::TogglePitchView => {
                 app.ui.game_panel.toggle_pitch_view();
                 Ok(None)
@@ -1498,20 +1514,8 @@ impl UiCallback {
                 let mut player = app.world.players.get_or_err(player_id)?.clone();
                 player.can_drink(&app.world)?;
 
-                let morale_bonus = if matches!(player.special_trait, Some(Trait::Spugna)) {
-                    MAX_SKILL
-                } else {
-                    MORALE_DRINK_BONUS
-                };
-
-                let tiredness_malus = if matches!(player.special_trait, Some(Trait::Spugna)) {
-                    TIREDNESS_DRINK_MALUS_SPUGNA
-                } else {
-                    TIREDNESS_DRINK_MALUS
-                };
-
-                player.add_morale(morale_bonus);
-                player.add_tiredness(tiredness_malus);
+                let rng = &mut ChaCha8Rng::from_rng(&mut rand::rng());
+                let got_drunk = player.drink(rng);
 
                 let mut team = app
                     .world
@@ -1521,16 +1525,32 @@ impl UiCallback {
 
                 team.sub_resource(Resource::RUM, 1)?;
 
-                //If player is a spugna and pilot and team is travelling or exploring and player was already maxxed in morale,
-                // there is a chance that the player enters a portal to a random planet.
-                let rng = &mut ChaCha8Rng::from_rng(&mut rand::rng());
+                if got_drunk {
+                    let description = [
+                        "puked on the floor!".to_string(),
+                        "drunk one too many!".to_string(),
+                        "got wasted!".to_string(),
+                        format!(
+                            "collapsed with the bottle in {} hand!",
+                            player.info.pronouns.as_possessive()
+                        ),
+                    ]
+                    .choose(rng)
+                    .expect("There should be one option")
+                    .clone();
 
-                let discovery_probability = (PORTAL_DISCOVERY_PROBABILITY
-                    * TeamBonus::Exploration.current_player_bonus(&player) as f64)
-                    .min(1.0);
-                if matches!(player.special_trait, Some(Trait::Spugna))
+                    app.ui.push_popup(PopupMessage::Ok {
+                        message: format!("{} {}", player.info.short_name(), description),
+                        is_skippable: true,
+                        timestamp: Tick::now(),
+                    });
+                }
+
+                // If a spugna pilot gets drunk while the team is travelling or exploring,
+                // the player enters a portal to a random planet.
+                if got_drunk
+                    && matches!(player.special_trait, Some(Trait::Spugna))
                     && player.info.crew_role == CrewRole::Pilot
-                    && rng.random_bool(discovery_probability)
                 {
                     let portal_target_id = match team.current_location {
                         TeamLocation::OnPlanet { .. } | TeamLocation::OnSpaceAdventure { .. } => {

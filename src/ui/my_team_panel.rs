@@ -99,6 +99,11 @@ pub struct MyTeamPanel {
     tick: usize,
     gif_map: GifMap,
     players_table: ClickableTable<'static>,
+    players_table_state: ClickableTableState,
+    planet_list_state: ClickableListState,
+    game_list_state: ClickableListState,
+    spaceship_upgrade_list_state: ClickableListState,
+    asteroid_list_state: ClickableListState,
 }
 
 impl MyTeamPanel {
@@ -199,7 +204,7 @@ impl MyTeamPanel {
         Ok(())
     }
 
-    fn render_market(&self, frame: &mut UiFrame, world: &World, area: Rect) -> AppResult<()> {
+    fn render_market(&mut self, frame: &mut UiFrame, world: &World, area: Rect) -> AppResult<()> {
         let split = Layout::horizontal([Constraint::Length(48), Constraint::Min(48)]).split(area);
         self.render_planet_markets(frame, world, split[0])?;
         self.render_market_buttons(frame, world, split[1])?;
@@ -208,7 +213,7 @@ impl MyTeamPanel {
     }
 
     fn render_planet_markets(
-        &self,
+        &mut self,
         frame: &mut UiFrame,
         world: &World,
         area: Rect,
@@ -240,13 +245,14 @@ impl MyTeamPanel {
         }
 
         let list = selectable_list(options);
+        self.planet_list_state.select(self.planet_index);
         frame.render_stateful_interactive_widget(
             list,
             split[0].inner(Margin {
                 horizontal: 0,
                 vertical: 1,
             }),
-            &mut ClickableListState::default().with_selected(self.planet_index),
+            &mut self.planet_list_state,
         );
 
         let planet_id =
@@ -721,9 +727,33 @@ impl MyTeamPanel {
 
         frame.render_interactive_widget(game_position_fluidity_button, btm_split[2]);
 
+        let mut in_game_drinking_button = Button::new(
+            format!("in-game drinking: {}", own_team.in_game_drinking),
+            UiCallback::SetTeamInGameDrinking {
+                in_game_drinking: own_team.in_game_drinking.next(),
+            },
+        )
+        .set_hover_text(format!(
+            "{}: {}",
+            own_team.in_game_drinking,
+            own_team.in_game_drinking.description()
+        ))
+        .set_hotkey(ui_key::team::SET_IN_GAME_DRINKING);
+
+        if let Err(err) = can_change_team_settings.as_ref() {
+            in_game_drinking_button.disable(Some(err.to_string()));
+        }
+
+        frame.render_interactive_widget(in_game_drinking_button, btm_split[3]);
+
+        let challenges_split = Layout::horizontal([22, 12, 14]).split(btm_split[4]);
+        frame.render_widget(
+            Paragraph::new("Accept challenges").centered(),
+            challenges_split[0].inner(Margin::new(0, 1)),
+        );
         let local_challenge_button = Button::new(
             format!(
-                "Auto-accept local challenges: {}",
+                "local:{}",
                 if own_team.autonomous_strategy.challenge_local {
                     "on"
                 } else {
@@ -734,11 +764,11 @@ impl MyTeamPanel {
         )
         .set_hover_text("Accept challenges from local teams automatically.".to_string())
         .set_hotkey(ui_key::team::TOGGLE_ACCEPT_LOCAL_CHALLENGES);
-        frame.render_interactive_widget(local_challenge_button, btm_split[3]);
+        frame.render_interactive_widget(local_challenge_button, challenges_split[1]);
 
         let network_challenge_button = Button::new(
             format!(
-                "Auto-accept network challenges: {}",
+                "network:{}",
                 if own_team.autonomous_strategy.challenge_network {
                     "on"
                 } else {
@@ -749,7 +779,7 @@ impl MyTeamPanel {
         )
         .set_hover_text("Accept challenges from network teams automatically.".to_string())
         .set_hotkey(ui_key::team::TOGGLE_ACCEPT_NETWORK_CHALLENGES);
-        frame.render_interactive_widget(network_challenge_button, btm_split[4]);
+        frame.render_interactive_widget(network_challenge_button, challenges_split[2]);
 
         match own_team.current_location {
             TeamLocation::OnPlanet { .. } => {
@@ -902,11 +932,8 @@ impl MyTeamPanel {
         }
         let list = selectable_list(options);
 
-        frame.render_stateful_interactive_widget(
-            list,
-            v_split[0],
-            &mut ClickableListState::default().with_selected(self.game_index),
-        );
+        self.game_list_state.select(self.game_index);
+        frame.render_stateful_interactive_widget(list, v_split[0], &mut self.game_list_state);
 
         let game_index = if let Some(index) = self.game_index {
             index % self.past_game_ids.len()
@@ -1262,7 +1289,7 @@ impl MyTeamPanel {
     }
 
     fn render_shipyard_upgrades_list(
-        &self,
+        &mut self,
         frame: &mut UiFrame,
         world: &World,
         area: Rect,
@@ -1308,13 +1335,15 @@ impl MyTeamPanel {
 
         let list = selectable_list(options);
 
+        self.spaceship_upgrade_list_state
+            .select(Some(self.spaceship_upgrade_index));
         frame.render_stateful_interactive_widget(
             list,
             h_split[0].inner(Margin {
                 horizontal: 0,
                 vertical: 1,
             }),
-            &mut ClickableListState::default().with_selected(Some(self.spaceship_upgrade_index)),
+            &mut self.spaceship_upgrade_list_state,
         );
 
         let available = available_upgrade_targets(&own_team.spaceship);
@@ -1506,7 +1535,7 @@ impl MyTeamPanel {
     }
 
     fn render_asteroid_list(
-        &self,
+        &mut self,
         frame: &mut UiFrame,
         world: &World,
         area: Rect,
@@ -1572,13 +1601,14 @@ impl MyTeamPanel {
 
         let list = selectable_list(options);
 
+        self.asteroid_list_state.select(self.asteroid_index);
         frame.render_stateful_interactive_widget(
             list,
             h_split[0].inner(Margin {
                 horizontal: 0,
                 vertical: 1,
             }),
-            &mut ClickableListState::default().with_selected(self.asteroid_index),
+            &mut self.asteroid_list_state,
         );
 
         if let Some(index) = self.asteroid_index {
@@ -1938,7 +1968,7 @@ impl MyTeamPanel {
                 {
                     Some(idx) => format!(
                         "{:<2} {:<5}",
-                        (idx as GamePosition).as_str(),
+                        (idx as GamePosition).as_role(),
                         if (idx as GamePosition) < NUM_GAME_POSITIONS {
                             player.position_rating(idx as GamePosition).stars()
                         } else {
@@ -2027,7 +2057,7 @@ impl MyTeamPanel {
                     ClickableCell::from(current_role),
                     ClickableCell::from(format!(
                         "{:<2} {:<5}",
-                        best_role.as_str(),
+                        best_role.as_role(),
                         player.position_rating(best_role).stars()
                     )),
                     ClickableCell::from(player.info.crew_role.to_string()),
@@ -2079,10 +2109,11 @@ impl MyTeamPanel {
         let top_split =
             Layout::horizontal([Constraint::Fill(1), Constraint::Length(60)]).split(area);
 
+        self.players_table_state.select(self.player_index);
         frame.render_stateful_interactive_widget(
             &self.players_table,
             top_split[0],
-            &mut ClickableTableState::default().with_selected(self.player_index),
+            &mut self.players_table_state,
         );
 
         render_player_description(
@@ -2178,7 +2209,7 @@ impl MyTeamPanel {
                     } else if position == 6 {
                         "B2"
                     } else {
-                        position.as_str()
+                        position.as_role()
                     }
                 ),
                 UiCallback::SwapPlayerPositions {
@@ -2188,7 +2219,7 @@ impl MyTeamPanel {
             )
             .set_hover_text(format!(
                 "Set player initial position to {}.",
-                position.as_str()
+                position.as_role()
             ))
             .set_hotkey(ui_key::team::set_player_position(position));
 

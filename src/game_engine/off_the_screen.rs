@@ -2,6 +2,7 @@ use super::{action::*, constants::*, game::Game, types::*};
 use crate::core::{
     constants::{MoraleModifier, TirednessCost},
     skill::GameSkill,
+    GamePosition,
 };
 use rand::{seq::IndexedRandom, RngExt};
 use rand_chacha::ChaCha8Rng;
@@ -100,7 +101,7 @@ pub(crate) fn execute(
 
     let timer_increase = 4 + action_rng.random_range(0..=2);
 
-    let atk_result = playmaker.roll(action_rng)
+    let atk_result = playmaker.roll(action_rng, Some(play_idx as GamePosition))
         + playmaker.technical.passing.game_value()
         + (0.5 * playmaker.mental.vision + 0.5 * target.mental.intuition).game_value()
         + game
@@ -108,7 +109,7 @@ pub(crate) fn execute(
             .tactic
             .attack_roll_bonus(&Action::OffTheScreen);
 
-    let def_result = playmaker_defender.roll(action_rng)
+    let def_result = playmaker_defender.roll(action_rng, Some(play_idx as GamePosition))
         + playmaker_defender.defense.perimeter_defense.game_value()
         + (0.5 * target_defender.athletics.quickness
             + 0.25 * target_defender.mental.intuition
@@ -269,7 +270,7 @@ pub(crate) fn execute(
             },
             _ => {
                 playmaker_update.turnovers = 1;
-                playmaker_update.extra_morale += MoraleModifier::SMALL_MALUS;
+                playmaker_update.extra_morale += MoraleModifier::MEDIUM_MALUS;
                 playmaker_defender_update.extra_morale += MoraleModifier::SMALL_BONUS;
 
                 // Equivalent to `- def_result - target_defender.defense.steal.game_value() <= STEAL_LIMIT`
@@ -281,11 +282,7 @@ pub(crate) fn execute(
                     playmaker_update.extra_morale += MoraleModifier::MEDIUM_MALUS;
                 }
 
-                let situation = if with_steal && action_rng.random_bool(FASTBREAK_ACTION_PROBABILITY * game.defending_team().tactic.fastbreak_probability_modifier()){
-                    ActionSituation::Fastbreak
-                } else {
-                    ActionSituation::Turnover
-                };
+                let situation = game.fastbreak_or_turnover(with_steal,game.team_momentum(!input.possession), action_rng);
 
                 // After possession flips, the defender who stole is at the same index
                 // as the attacker they were guarding (players are mirrored by position).

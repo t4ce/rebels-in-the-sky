@@ -2,6 +2,7 @@ use super::{action::*, constants::*, game::Game, shot, types::*};
 use crate::core::{
     constants::{MoraleModifier, TirednessCost},
     skill::GameSkill,
+    GamePosition,
 };
 use rand::{seq::IndexedRandom, RngExt};
 use rand_chacha::ChaCha8Rng;
@@ -54,7 +55,7 @@ pub(crate) fn execute(
         ..Default::default()
     };
 
-    let atk_result = iso.roll(action_rng)
+    let atk_result = iso.roll(action_rng, Some(iso_idx as GamePosition))
         + iso.technical.ball_handling.game_value()
         + (0.75 * iso.athletics.quickness + 0.25 * iso.mental.aggression).game_value()
         + game
@@ -62,7 +63,7 @@ pub(crate) fn execute(
             .tactic
             .attack_roll_bonus(&Action::Isolation);
 
-    let def_result = defender.roll(action_rng)
+    let def_result = defender.roll(action_rng, Some(iso_idx as GamePosition))
         + defender.defense.perimeter_defense.game_value()
         + (0.75 * defender.athletics.quickness + 0.25 * defender.defense.steal).game_value()
         + game
@@ -309,11 +310,7 @@ pub(crate) fn execute(
                 iso_update.extra_morale += MoraleModifier::MEDIUM_MALUS;
             }
 
-            let situation = if with_steal && action_rng.random_bool(FASTBREAK_ACTION_PROBABILITY * game.defending_team().tactic.fastbreak_probability_modifier()){
-                ActionSituation::Fastbreak
-            } else {
-                ActionSituation::Turnover
-            };
+            let situation = game.fastbreak_or_turnover(with_steal,game.team_momentum(!input.possession), action_rng);
 
             // After possession flips, the defender who stole is at the same index
             // as the attacker they were guarding (players are mirrored by position).

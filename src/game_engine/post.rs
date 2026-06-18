@@ -3,6 +3,7 @@ use crate::core::{
     constants::{MoraleModifier, TirednessCost},
     player::Player,
     skill::GameSkill,
+    GamePosition,
 };
 use rand::{seq::IndexedRandom, RngExt};
 use rand_chacha::ChaCha8Rng;
@@ -58,7 +59,7 @@ pub(crate) fn execute(
         ..Default::default()
     };
 
-    let atk_result = poster.roll(action_rng)
+    let atk_result = poster.roll(action_rng, Some(post_idx as GamePosition))
         + poster.technical.post_moves.game_value()
         + poster.athletics.strength.game_value()
         + game
@@ -66,7 +67,7 @@ pub(crate) fn execute(
             .tactic
             .attack_roll_bonus(&Action::Post);
 
-    let def_result = defender.roll(action_rng)
+    let def_result = defender.roll(action_rng, Some(post_idx as GamePosition))
         + defender.defense.interior_defense.game_value()
         + (0.75 * defender.athletics.strength + 0.25 * defender.defense.steal).game_value()
         + game
@@ -125,7 +126,7 @@ pub(crate) fn execute(
             situation: ActionSituation::CloseShot,
             description: [
                 format!(
-                    "{} bumps on {} and gathers the ball to shoot.",
+                    "{} bumps on {} and tries to gather the ball to shoot.",
                     poster.info.short_name(),
                     defender.info.short_name(),
                 ),
@@ -263,18 +264,11 @@ pub(crate) fn execute(
                 post_update.extra_morale += MoraleModifier::MEDIUM_MALUS;
             }
 
-            let situation = if with_steal
-                && action_rng.random_bool(
-                    FASTBREAK_ACTION_PROBABILITY
-                        * game
-                            .defending_team()
-                            .tactic
-                            .fastbreak_probability_modifier(),
-                ) {
-                ActionSituation::Fastbreak
-            } else {
-                ActionSituation::Turnover
-            };
+            let situation = game.fastbreak_or_turnover(
+                with_steal,
+                game.team_momentum(!input.possession),
+                action_rng,
+            );
 
             let attackers = if with_steal { vec![post_idx] } else { vec![] };
 

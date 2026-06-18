@@ -4,14 +4,15 @@ use crate::{
         constants::MAX_PLAYERS_PER_GAME,
         player::Player,
         position::{GamePosition, NUM_GAME_POSITIONS},
+        resources::Resource,
         skill::{MAX_SKILL, MIN_SKILL},
         team::Team,
         utils::is_default,
         GameRating, GameSkill, Rated, Skill,
     },
-    game_engine::constants::NUMBER_OF_ROLLS,
+    game_engine::constants::{FITNESS_ROLL_MALUS, NUMBER_OF_ROLLS},
     image::game::PitchImage,
-    types::{AppResult, GameId, PlayerId, PlayerMap, TeamId, TeamMap},
+    types::{AppResult, GameId, PlayerId, PlayerMap, StorableResourceMap, TeamId, TeamMap},
 };
 use anyhow::anyhow;
 use itertools::Itertools;
@@ -74,6 +75,9 @@ pub struct GameStats {
     pub turnovers: u16,
     #[serde(skip_serializing_if = "is_default")]
     #[serde(default)]
+    pub rum_drunk: u16,
+    #[serde(skip_serializing_if = "is_default")]
+    #[serde(default)]
     pub plus_minus: i32,
     #[serde(skip_serializing_if = "is_default")]
     #[serde(default)]
@@ -113,6 +117,7 @@ impl GameStats {
         self.steals += stats.steals;
         self.blocks += stats.blocks;
         self.turnovers += stats.turnovers;
+        self.rum_drunk += stats.rum_drunk;
         if let Some(shot) = stats.last_action_shot {
             self.shots.push(shot);
             assert!(!self.shots.is_empty());
@@ -132,20 +137,57 @@ impl GameStats {
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct TeamInGame {
     pub team_id: TeamId,
+    #[serde(skip_serializing_if = "is_default")]
+    #[serde(default)]
     pub peer_id: Option<PeerId>,
     pub reputation: Skill,
+    #[serde(skip_serializing_if = "is_default")]
+    #[serde(default)]
     pub version: u64,
     pub name: String,
+    #[serde(skip_serializing_if = "is_default")]
+    #[serde(default)]
     pub initial_positions: Vec<PlayerId>,
     // This is necessary for NetworkGame and in general to be able to simulate a game from the start
     // because the player tiredness is updated during the game.
     // The order is the same as initial_positions
+    #[serde(skip_serializing_if = "is_default")]
+    #[serde(default)]
     pub initial_tiredness: Vec<Skill>,
+    #[serde(skip_serializing_if = "is_default")]
+    #[serde(default)]
     pub initial_morale: Vec<Skill>,
+    #[serde(skip_serializing_if = "is_default")]
+    #[serde(default)]
+    pub initial_drunkenness: Vec<Skill>,
+    // Rum brought to the game, see Team::enter_game.
+    #[serde(skip_serializing_if = "is_default")]
+    #[serde(default)]
+    pub initial_rum: u32,
+    #[serde(skip_serializing_if = "is_default")]
+    #[serde(default)]
+    pub rum: u32,
+    #[serde(skip_serializing_if = "is_default")]
+    #[serde(default)]
     pub players: PlayerMap,
+    #[serde(skip_serializing_if = "is_default")]
+    #[serde(default)]
     pub stats: GameStatsMap,
+    #[serde(skip_serializing_if = "is_default")]
+    #[serde(default)]
     pub tactic: Tactic,
-    pub momentum: u8,
+    #[serde(skip_serializing_if = "is_default")]
+    #[serde(default)]
+    pub substitution_tendency: SubstitutionTendency,
+    #[serde(skip_serializing_if = "is_default")]
+    #[serde(default)]
+    pub game_position_fluidity: GamePositionFluidity,
+    #[serde(skip_serializing_if = "is_default")]
+    #[serde(default)]
+    pub in_game_drinking: InGameDrinking,
+    #[serde(skip_serializing_if = "is_default")]
+    #[serde(default)]
+    pub score_run: u16,
     #[serde(skip_serializing_if = "is_default")]
     #[serde(default)]
     pub network_game_rating: GameRating,
@@ -165,6 +207,12 @@ impl TeamInGame {
 
         let initial_tiredness = players.values().map(|p| p.tiredness).collect();
         let initial_morale = players.values().map(|p| p.morale).collect();
+        let initial_drunkenness = players.values().map(|p| p.drunkenness).collect();
+
+        // Rum brought to the game, depending on the team in-game drinking setting.
+        let initial_rum = team.resources.value(&Resource::RUM).min(
+            team.in_game_drinking.bottles_per_player() * players.len() as u32,
+        );
 
         let network_game_rating = team.network_game_rating.clone();
         Self {
@@ -175,11 +223,17 @@ impl TeamInGame {
             initial_positions: players.keys().copied().collect_vec(),
             initial_tiredness,
             initial_morale,
+            initial_drunkenness,
+            initial_rum,
+            rum: initial_rum,
             version: team.version,
             players,
             stats,
             tactic: team.game_tactic,
             network_game_rating,
+            substitution_tendency: team.substitution_tendency,
+            game_position_fluidity: team.game_position_fluidity,
+            in_game_drinking: team.in_game_drinking,
             ..Default::default()
         }
     }
@@ -217,6 +271,16 @@ impl TeamInGame {
         }
 
         Ok(TeamInGame::new(team, team_players))
+    }
+
+    // Total drunkenness of the players currently on the pitch.
+    pub(crate) fn playing_drunkenness(&self) -> Skill {
+        self.stats
+            .iter()
+            .filter(|(_, stats)| stats.is_playing())
+            .filter_map(|(id, _)| self.players.get(id))
+            .map(|p| p.drunkenness)
+            .sum()
     }
 
     pub fn pick_action(&self, rng: &mut ChaCha8Rng) -> Option<Action> {
@@ -269,6 +333,14 @@ impl SubstitutionTendency {
             Self::High => "Tend to substitute players more often during games.",
         }
     }
+
+    pub const fn substitution_probability(&self) -> f64 {
+        match self {
+            Self::Low => 0.125,
+            Self::Normal => 0.25,
+            Self::High => 0.425,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, Display, PartialEq, Serialize_repr, Deserialize_repr)]
@@ -294,6 +366,59 @@ impl GamePositionFluidity {
             Self::Low => "Tend to put players in their best position as much as possible.",
             Self::Normal => "Tend to put players in their best position with default frequency.",
             Self::High => "Tend to allow players to play in more positions.",
+        }
+    }
+
+    pub const fn fitness_exponent(&self) -> f32 {
+        match self {
+            Self::Low => 1.5,
+            Self::Normal => 1.0,
+            Self::High => 0.6,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, Display, PartialEq, Serialize_repr, Deserialize_repr)]
+#[repr(u8)]
+pub enum InGameDrinking {
+    None,
+    #[default]
+    Normal,
+    High,
+}
+
+impl InGameDrinking {
+    pub const fn next(&self) -> Self {
+        match self {
+            Self::None => Self::Normal,
+            Self::Normal => Self::High,
+            Self::High => Self::None,
+        }
+    }
+
+    pub const fn description(&self) -> &'static str {
+        match self {
+            Self::None => "Bring no rum to games: pirates never drink on the bench.",
+            Self::Normal => "Bring 1 liter of rum per pirate to games for the occasional bench swig.",
+            Self::High => "Bring 2 liters of rum per pirate to games. The bench drinks often.",
+        }
+    }
+
+    // How many liters of rum per pirate are brought to a game.
+    pub const fn bottles_per_player(&self) -> u32 {
+        match self {
+            Self::None => 0,
+            Self::Normal => 1,
+            Self::High => 2,
+        }
+    }
+
+    // Multiplies the morale-based probability of drinking when substituted out.
+    pub const fn drink_probability_modifier(&self) -> f64 {
+        match self {
+            Self::None => 0.0,
+            Self::Normal => 1.0,
+            Self::High => 1.5,
         }
     }
 }
@@ -384,8 +509,12 @@ fn test_gamestats_serde() {
 pub trait EnginePlayer {
     fn min_roll(&self) -> i16;
     fn max_roll(&self) -> i16;
-    fn roll(&self, rng: &mut ChaCha8Rng) -> i16;
-    fn in_game_rating_at_position(&self, position: GamePosition) -> f32;
+    fn roll(&self, rng: &mut ChaCha8Rng, position: Option<GamePosition>) -> i16;
+    fn in_game_rating_at_position(
+        &self,
+        position: GamePosition,
+        game_position_fluidity: GamePositionFluidity,
+    ) -> f32;
 }
 
 impl EnginePlayer for Player {
@@ -408,23 +537,52 @@ impl EnginePlayer for Player {
                 * (MAX_SKILL - (self.tiredness - MIN_TIREDNESS_FOR_ROLL_DECLINE)) as i16
     }
 
-    fn roll(&self, rng: &mut ChaCha8Rng) -> i16 {
-        rng.random_range(MIN_SKILL as i16..=NUMBER_OF_ROLLS as i16 * MAX_SKILL as i16)
-            .max(self.min_roll())
-            .min(self.max_roll())
-    }
-
-    fn in_game_rating_at_position(&self, position: GamePosition) -> f32 {
-        if self.is_knocked_out() {
-            return 0.0;
-        }
-
-        // Follow the general rule: Roll + 2 * skills ( + tactic but it's the same for evey player in the team).
-        let roll = ((MIN_SKILL as i16 + NUMBER_OF_ROLLS as i16 * MAX_SKILL as i16) / 2)
+    fn roll(&self, rng: &mut ChaCha8Rng, position: Option<GamePosition>) -> i16 {
+        let base = rng
+            .random_range(MIN_SKILL as i16..=NUMBER_OF_ROLLS as i16 * MAX_SKILL as i16)
             .max(self.min_roll())
             .min(self.max_roll());
 
-        roll as f32 + 2.0 * self.position_rating(position)
+        // Playing out of position caps performance, scaled by how poor the fit is.
+        let fitness_malus = if let Some(position) = position {
+            let fitness = self
+                .game_position_fitness
+                .get(position as usize)
+                .copied()
+                .unwrap_or_default()
+                / MAX_SKILL;
+            ((1.0 - fitness) * FITNESS_ROLL_MALUS) as i16
+        } else {
+            0
+        };
+
+        (base - fitness_malus).max(MIN_SKILL as i16)
+    }
+
+    fn in_game_rating_at_position(
+        &self,
+        position: GamePosition,
+        game_position_fluidity: GamePositionFluidity,
+    ) -> f32 {
+        if self.is_knocked_out() {
+            return 0.0;
+        }
+        // Follow the general rule: Roll + 2 * skills ( + tactic but it's the same for evey player in the team).
+        // This factor takes into account the current tiredness
+        let roll = (self.min_roll() + self.max_roll()) / 2;
+
+        // Adjust the skill part by the position fitness, reshaped by the team
+        // fluidity setting: the exponent widens (Low) or narrows (High) the gap
+        // between good and bad fits.
+        let fitness = self
+            .game_position_fitness
+            .get(position as usize)
+            .copied()
+            .unwrap_or_default()
+            / MAX_SKILL;
+        let adjusted_fitness = fitness.powf(game_position_fluidity.fitness_exponent());
+
+        roll as f32 + 2.0 * self.position_skill_rating(position) * adjusted_fitness
     }
 }
 
@@ -434,8 +592,8 @@ fn test_roll() {
     use rand::SeedableRng;
 
     fn print_player_rolls(player: &Player, rng: &mut ChaCha8Rng) {
-        let roll = player.roll(rng);
-        let roll2 = player.roll(rng);
+        let roll = player.roll(rng, None);
+        let roll2 = player.roll(rng, None);
         println!(
             "Tiredness={:<4.1} Morale={:<4.1} => Min={:<3} Max={:<3} Roll={:<3}  AdvAtk={:<3} AdvDef={:<3}",
             player.tiredness,
