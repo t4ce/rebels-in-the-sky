@@ -3,7 +3,7 @@ use super::clickable_list::ClickableListState;
 use super::gif_map::GifMap;
 use super::ui_callback::UiCallback;
 use super::ui_frame::UiFrame;
-use super::ui_screen::{render_help_block, UiTab};
+use super::ui_screen::{render_help_block, tab_link, UiTab};
 use super::widgets::{
     go_to_team_current_planet_button, render_challenge_button, render_spaceship_description,
 };
@@ -49,9 +49,7 @@ static FLOOR_CACHE: LazyLock<Mutex<HashMap<u32, Vec<Line<'static>>>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
 fn floor_lines_for(width: u32) -> Vec<Line<'static>> {
-    let mut cache = FLOOR_CACHE
-        .lock()
-        .expect("floor cache mutex poisoned");
+    let mut cache = FLOOR_CACHE.lock().expect("floor cache mutex poisoned");
     cache
         .entry(width)
         .or_insert_with(|| img_to_lines(&floor_from_size(width, 2)))
@@ -159,7 +157,6 @@ impl TeamListPanel {
             },
         )
         .bold()
-        
         .set_hover_text("View all crews.");
 
         let mut filter_challenge_button = Button::new(
@@ -169,7 +166,6 @@ impl TeamListPanel {
             },
         )
         .bold()
-        
         .set_hover_text("View all crews that can be currently challenged to a game.");
 
         let mut filter_peers_button = Button::new(
@@ -178,7 +174,7 @@ impl TeamListPanel {
                 view: TeamView::Peers,
             },
         ).bold()
-        
+
         .set_hover_text(
             "View all crews received from the network (i.e. crews controlled by other players online)."
                 ,
@@ -464,8 +460,11 @@ impl TeamListPanel {
 }
 
 impl Screen for TeamListPanel {
-    fn update(&mut self, world: &World) -> AppResult<()> {
+    fn tick(&mut self) {
         self.tick += 1;
+    }
+
+    fn update(&mut self, world: &World) -> AppResult<()> {
         if world.dirty_ui || self.all_team_ids.len() != world.teams.len() {
             self.all_team_ids = world.teams.keys().copied().collect();
             self.all_team_ids.sort_by(|a, b| {
@@ -598,21 +597,15 @@ impl Screen for TeamListPanel {
                 Line::from(" Browse all the rival crews. Inspect their roster and ship,"),
                 Line::from(" check their rating, and challenge them to a match when they"),
                 Line::from(" are open and on the same planet as you."),
+                Line::from(""),
+                Line::from(" Manage your own crew in My Team."),
+                Line::from(" To inspect individual players, browse Pirates."),
+                Line::from(" To find a planet and travel there, see Galaxy."),
             ],
             vec![
-                (" Manage your own crew in ", "My Team", UiTab::MyTeam, "."),
-                (
-                    " To inspect individual players, browse ",
-                    "Pirates",
-                    UiTab::Pirates,
-                    ".",
-                ),
-                (
-                    " To find a planet and travel there, see ",
-                    "Galaxy",
-                    UiTab::Galaxy,
-                    ".",
-                ),
+                tab_link("My Team", UiTab::MyTeam),
+                tab_link("Pirates", UiTab::Pirates),
+                tab_link("Galaxy", UiTab::Galaxy),
             ],
             vec![
                 Line::from(" Controls:"),

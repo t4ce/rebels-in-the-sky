@@ -19,7 +19,7 @@ pub const NO_TO_DIALOG: KeyCode = KeyCode::Backspace;
 
 pub const GO_TO_CHAT: KeyCode = KeyCode::Char('C');
 pub const GO_TO_CHALLENGES: KeyCode = KeyCode::Char('C');
-pub const GO_TO_MARKET: KeyCode = KeyCode::Char('M');
+pub const GO_TO_MARKET: KeyCode = KeyCode::Char('m');
 pub const GO_TO_SPACE_ADVENTURE: KeyCode = KeyCode::Char('A');
 pub const GO_TO_SHIPYARD: KeyCode = KeyCode::Char('S');
 pub const GO_TO_FREE_PIRATES: KeyCode = KeyCode::Char('F');
@@ -36,6 +36,8 @@ pub const GO_TO_TEAM: KeyCode = KeyCode::Backspace;
 pub const GO_TO_TEAM_ALT: KeyCode = KeyCode::Char('t');
 pub const GO_TO_GAME: KeyCode = KeyCode::Char('g');
 pub const GO_TO_CURRENT_GAME: KeyCode = KeyCode::Char('C');
+
+pub const GO_TO_PIRATE: KeyCode = KeyCode::Char('p');
 
 pub const ON_PLANET: KeyCode = KeyCode::Char('O');
 pub const GO_TO_PLANET: KeyCode = KeyCode::Char('G');

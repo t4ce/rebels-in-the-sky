@@ -4,7 +4,7 @@ use super::constants::*;
 use super::gif_map::GifMap;
 use super::ui_callback::UiCallback;
 use super::ui_frame::UiFrame;
-use super::ui_screen::{render_help_block, UiTab};
+use super::ui_screen::{render_help_block, tab_link, UiTab};
 use super::widgets::{
     render_player_description, render_spaceship_description, selectable_list, PlayerWidgetView,
 };
@@ -19,7 +19,7 @@ use crate::network::types::{ChatHistoryEntry, PlayerRanking, TeamRanking};
 use crate::types::{AppResult, HashMapWithResult, PlayerId, SystemTimeTick, TeamId, Tick};
 use crate::ui::clickable_list::{ClickableList, ClickableListItem};
 use crate::ui::ui_key;
-use crate::ui::utils::wrap_text;
+use crate::ui::utils::{wrap_text, IndexBound};
 use anyhow::Error;
 use core::fmt::Debug;
 use itertools::Itertools;
@@ -773,7 +773,8 @@ impl SwarmPanel {
 
         let list = selectable_list(options);
 
-        self.team_ranking_list_state.select(Some(team_ranking_index));
+        self.team_ranking_list_state
+            .select(Some(team_ranking_index));
         frame.render_stateful_interactive_widget(
             list,
             list_split[1],
@@ -861,7 +862,8 @@ impl SwarmPanel {
 
         let list = selectable_list(options);
 
-        self.player_ranking_list_state.select(Some(player_ranking_index));
+        self.player_ranking_list_state
+            .select(Some(player_ranking_index));
         frame.render_stateful_interactive_widget(
             list,
             list_split[1],
@@ -983,8 +985,11 @@ impl SwarmPanel {
 
         let new_count = items.len();
         self.chat_message_list = ClickableList::new(items).block(default_block().title("Chat"));
-        self.chat_message_index =
-            clamped_tail_index(self.chat_message_index, self.displayed_chat_count, new_count);
+        self.chat_message_index = clamped_tail_index(
+            self.chat_message_index,
+            self.displayed_chat_count,
+            new_count,
+        );
         self.displayed_chat_count = new_count;
     }
 
@@ -1061,22 +1066,16 @@ impl SwarmPanel {
 }
 
 impl Screen for SwarmPanel {
-    fn update(&mut self, world: &World) -> AppResult<()> {
+    fn tick(&mut self) {
         self.tick += 1;
+    }
 
-        if self.max_index() == 0 {
-            if self.view == SwarmView::Ranking {
-                match self.active_list {
-                    PanelList::Players => self.player_ranking_index = None,
-                    PanelList::Teams => self.team_ranking_index = None,
-                }
+    fn update(&mut self, world: &World) -> AppResult<()> {
+        if self.max_index() == 0 && self.view == SwarmView::Ranking {
+            match self.active_list {
+                PanelList::Players => self.player_ranking_index = None,
+                PanelList::Teams => self.team_ranking_index = None,
             }
-        }
-        // If chat index is at the bottom, reset unread chat messages.
-        else if self.view == SwarmView::Chat
-            && matches!(self.index(), Some(idx) if idx == self.max_index() - 1)
-        {
-            self.unread_chat_messages = 0;
         }
 
         if self.should_update_chat_list {
@@ -1187,21 +1186,15 @@ impl Screen for SwarmPanel {
                 Line::from(" Talk to other captains over the peer-to-peer swarm: chat,"),
                 Line::from(" review trade and challenge requests, browse the global player"),
                 Line::from(" and team rankings, and watch the network log."),
+                Line::from(""),
+                Line::from(" Accept a challenge here, then play it from Games."),
+                Line::from(" Inspect rivals before accepting via Crews."),
+                Line::from(" Browse traded players in Pirates."),
             ],
             vec![
-                (
-                    " Accept a challenge here, then play it from ",
-                    "Games",
-                    UiTab::Games,
-                    ".",
-                ),
-                (
-                    " Inspect rivals before accepting via ",
-                    "Crews",
-                    UiTab::Crews,
-                    ".",
-                ),
-                (" Browse traded players in ", "Pirates", UiTab::Pirates, "."),
+                tab_link("Games", UiTab::Games),
+                tab_link("Crews", UiTab::Crews),
+                tab_link("Pirates", UiTab::Pirates),
             ],
             vec![
                 Line::from(" Controls:"),
@@ -1266,19 +1259,7 @@ impl SplitPanel for SwarmPanel {
         }
     }
 
-    fn previous_index(&mut self) {
-        if self.max_index() > 0 {
-            if let Some(current_index) = self.index() {
-                self.set_index((current_index + 1).min(self.max_index() - 1));
-            }
-        }
-    }
-
-    fn next_index(&mut self) {
-        if self.max_index() > 0 {
-            if let Some(current_index) = self.index() {
-                self.set_index(current_index.saturating_sub(1));
-            }
-        }
+    fn index_bound(&self) -> IndexBound {
+        IndexBound::Clamp
     }
 }

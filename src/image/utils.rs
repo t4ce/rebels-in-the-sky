@@ -4,8 +4,8 @@ use crate::types::AppResult;
 use anyhow::anyhow;
 use image::error::{ParameterError, ParameterErrorKind};
 use image::{ImageBuffer, ImageError, ImageReader, ImageResult, Rgb, Rgba, RgbaImage};
-use std::sync::LazyLock;
 use std::io::Cursor;
+use std::sync::LazyLock;
 
 pub type Gif = Vec<RgbaImage>;
 
@@ -157,6 +157,16 @@ impl LightMaskStyle {
             to_background: None,
             from_alpha: 215,
             to_alpha: 255,
+            center: Some(center),
+        }
+    }
+
+    pub fn lamp(center: (u32, u32)) -> Self {
+        Self::Exponential {
+            from_background: Rgb([255, 200, 90]),
+            to_background: None,
+            from_alpha: 255,
+            to_alpha: 0,
             center: Some(center),
         }
     }

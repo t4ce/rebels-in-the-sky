@@ -5,7 +5,7 @@ use crate::core::resources::Resource;
 use crate::core::world::World;
 use crate::core::{Kartoffel, Trait};
 use crate::image::utils::Gif;
-use crate::ui::utils::img_to_lines;
+use crate::ui::utils::{img_to_lines, normalize_index, IndexBound};
 use crate::{core::skill::Rated, types::AppResult};
 use ratatui::crossterm;
 use ratatui::{
@@ -19,6 +19,7 @@ pub type ImageLines = Vec<Line<'static>>;
 pub type GifLines = Vec<ImageLines>;
 
 pub trait Screen {
+    fn tick(&mut self);
     fn update(&mut self, world: &World) -> AppResult<()>;
     fn render(
         &mut self,
@@ -64,17 +65,28 @@ pub trait SplitPanel {
         0
     }
     fn set_index(&mut self, _index: usize) {}
+    fn index_bound(&self) -> IndexBound {
+        IndexBound::Wrap
+    }
     fn previous_index(&mut self) {
-        if self.max_index() > 0 {
-            if let Some(current_index) = self.index() {
-                self.set_index((current_index + 1) % self.max_index());
+        let len = self.max_index();
+        let bound = self.index_bound();
+        if let Some(i) = self.index() {
+            if let Some(next) = normalize_index(i + 1, len, bound) {
+                self.set_index(next);
             }
         }
     }
     fn next_index(&mut self) {
-        if self.max_index() > 0 {
-            if let Some(current_index) = self.index() {
-                self.set_index((current_index + self.max_index() - 1) % self.max_index());
+        let len = self.max_index();
+        let bound = self.index_bound();
+        if let Some(i) = self.index() {
+            let raw = match bound {
+                IndexBound::Wrap => (i + len).saturating_sub(1),
+                IndexBound::Clamp => i.saturating_sub(1),
+            };
+            if let Some(next) = normalize_index(raw, len, bound) {
+                self.set_index(next);
             }
         }
     }

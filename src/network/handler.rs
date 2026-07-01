@@ -422,7 +422,7 @@ impl NetworkHandler {
                                 // listen on a circuit address through it so we become reachable from behind a NAT.
                                 // DCUtR then upgrades the relayed connection to a direct one.
                                 if !relay_reserved
-                                    && info.protocols.iter().any(|p| *p == relay::HOP_PROTOCOL_NAME)
+                                    && info.protocols.contains(&relay::HOP_PROTOCOL_NAME)
                                 {
                                     for seed in &seed_addresses {
                                         let circuit = seed
@@ -1281,7 +1281,7 @@ mod tests {
         let home_planet = world.planets.keys().next().unwrap().clone();
         let team_name = "Testen".to_string();
         let ship_name = "Tosten".to_string();
-        let own_team_id = world.generate_random_team(rng, home_planet, team_name, ship_name, None);
+        let own_team_id = world.generate_random_team(rng, home_planet, team_name, ship_name);
         let network_team =
             NetworkTeam::from_team_id(&world, &own_team_id.unwrap(), PeerId::random()).unwrap();
 

@@ -4,7 +4,7 @@ use super::constants::*;
 use super::gif_map::GifMap;
 use super::ui_callback::UiCallback;
 use super::ui_frame::UiFrame;
-use super::ui_screen::{render_help_block, UiTab};
+use super::ui_screen::{render_help_block, tab_link, UiTab};
 use super::utils::format_satoshi;
 use super::widgets::PlayerWidgetView;
 use super::{
@@ -415,7 +415,9 @@ impl PlayerListPanel {
 
         // Add hire button for free pirates
         if player.team.is_none() {
-            let hire_cost = player.hire_cost(own_team.reputation);
+            let is_in_space_cove = world.player_is_in_space_cove_on(player);
+
+            let hire_cost = player.hire_cost();
             let mut button = Button::new(
                 format!("Hire (-{})", format_satoshi(hire_cost)),
                 UiCallback::HirePlayer {
@@ -427,7 +429,7 @@ impl PlayerListPanel {
                 format_satoshi(hire_cost)
             ))
             .set_hotkey(ui_key::player::HIRE);
-            if let Err(err) = own_team.can_hire_player(player) {
+            if let Err(err) = own_team.can_hire_player(player, is_in_space_cove) {
                 button.disable(Some(err.to_string()));
             }
 
@@ -546,8 +548,11 @@ impl PlayerListPanel {
 }
 
 impl Screen for PlayerListPanel {
-    fn update(&mut self, world: &World) -> AppResult<()> {
+    fn tick(&mut self) {
         self.tick += 1;
+    }
+
+    fn update(&mut self, world: &World) -> AppResult<()> {
         if world.dirty_ui || self.all_players.len() != world.players.len() {
             self.all_players = world.players.keys().copied().collect();
             self.all_players.sort_by(|a, b| {
@@ -674,26 +679,15 @@ impl Screen for PlayerListPanel {
                 Line::from(" Browse free pirates and players across the galaxy. Inspect"),
                 Line::from(" their skills and stats, lock favorites, and hire those that"),
                 Line::from(" fit your roster and your budget."),
+                Line::from(""),
+                Line::from(" Once hired, manage them in My Team."),
+                Line::from(" To see who plays for which side, browse Crews."),
+                Line::from(" Free pirates often hang around their home planet, see Galaxy."),
             ],
             vec![
-                (
-                    " Once hired, manage them in ",
-                    "My Team",
-                    UiTab::MyTeam,
-                    ".",
-                ),
-                (
-                    " To see who plays for which side, browse ",
-                    "Crews",
-                    UiTab::Crews,
-                    ".",
-                ),
-                (
-                    " Free pirates often hang around their home planet, see ",
-                    "Galaxy",
-                    UiTab::Galaxy,
-                    ".",
-                ),
+                tab_link("My Team", UiTab::MyTeam),
+                tab_link("Crews", UiTab::Crews),
+                tab_link("Galaxy", UiTab::Galaxy),
             ],
             vec![
                 Line::from(" Controls:"),

@@ -8,7 +8,7 @@ use super::{
     big_numbers::{hyphen, BigNumberFont},
     constants::{IMG_FRAME_WIDTH, LEFT_PANEL_WIDTH},
     traits::{Screen, SplitPanel},
-    ui_screen::UiTab,
+    ui_screen::{tab_link, UiTab},
     utils::img_to_lines,
     widgets::{default_block, selectable_list, DOWN_ARROW_SPAN, SWITCH_ARROW_SPAN, UP_ARROW_SPAN},
 };
@@ -34,7 +34,8 @@ use core::fmt::Debug;
 use itertools::Itertools;
 use ratatui::crossterm;
 use ratatui::crossterm::event::KeyCode;
-use ratatui::style::Style;
+use ratatui::layout::Alignment;
+use ratatui::style::{Style, Styled};
 use ratatui::{
     layout::{Constraint, Layout, Margin},
     prelude::Rect,
@@ -334,7 +335,8 @@ impl GamePanel {
 
         let central_split = Layout::vertical([
             Constraint::Fill(1),
-            Constraint::Length(2),
+            Constraint::Length(1),
+            Constraint::Length(1),
             Constraint::Length(2),
             Constraint::Length(8),
             Constraint::Fill(1),
@@ -359,11 +361,11 @@ impl GamePanel {
                 }
             ))
             .centered(),
-            central_split[2],
+            central_split[3],
         );
 
         let digit_split =
-            Layout::horizontal([8, 1, 8, 1, 8, 1, 5, 1, 8, 1, 8, 1, 8]).split(central_split[3]);
+            Layout::horizontal([8, 1, 8, 1, 8, 1, 5, 1, 8, 1, 8, 1, 8]).split(central_split[4]);
 
         let action = if self.commentary_index == 0 {
             &game.action_results[game.action_results.len() - 1]
@@ -412,66 +414,73 @@ impl GamePanel {
             frame.render_widget(paragraph, top_split[3]);
         }
 
-        let home_dot = if action.possession == Possession::Home {
-            "● "
-        } else {
-            "  "
-        };
-        let away_dot = if action.possession == Possession::Away {
-            " ●"
-        } else {
-            "  "
-        };
-        let l = MAX_NAME_LENGTH + 2;
+        let l = MAX_NAME_LENGTH as u16 + 2;
         let spans_split = Layout::horizontal([
             Constraint::Fill(1),
-            Constraint::Length(2),
-            Constraint::Max(l as u16),
-            Constraint::Length(4),
-            Constraint::Max(l as u16),
-            Constraint::Length(2),
+            Constraint::Length(l),
+            Constraint::Length(7),
+            Constraint::Length(l),
             Constraint::Fill(1),
         ])
         .split(central_split[1]);
-        frame.render_widget(Paragraph::new(home_dot), spans_split[1]);
 
         if world.teams.contains_key(&game.home_team_in_game.team_id) {
-            let home_button = Button::new(
-                format!("{:>}", game.home_team_in_game.name),
+            let home_button = Button::no_box(
+                game.home_team_in_game.name.clone(),
                 UiCallback::GoToTeam {
                     team_id: game.home_team_in_game.team_id,
                 },
             )
+            .set_text_alignemnt(Alignment::Right)
+            .set_style(UiStyle::HELP_LINK)
             .set_hover_text(format!("Go to {} team", game.home_team_in_game.name));
-            frame.render_interactive_widget(home_button, spans_split[2]);
+
+            let name_split = Layout::horizontal([
+                Constraint::Fill(1),
+                Constraint::Length(game.home_team_in_game.name.len() as u16),
+            ])
+            .split(spans_split[1]);
+            frame.render_interactive_widget(home_button, name_split[1]);
         } else {
-            frame.render_widget(
-                Paragraph::new(format!("{:>}", game.home_team_in_game.name)),
-                spans_split[2],
-            );
+            frame.render_widget(format!("{:>}", game.home_team_in_game.name), spans_split[1]);
         }
 
         frame.render_widget(Paragraph::default(), spans_split[3]);
 
         if world.teams.contains_key(&game.away_team_in_game.team_id) {
-            let away_button = Button::new(
-                format!("{:<}", game.away_team_in_game.name),
+            let away_button = Button::no_box(
+                game.away_team_in_game.name.clone(),
                 UiCallback::GoToTeam {
                     team_id: game.away_team_in_game.team_id,
                 },
             )
+            .set_text_alignemnt(Alignment::Left)
+            .set_style(UiStyle::HELP_LINK)
             .set_hover_text(format!("Go to {} team", game.away_team_in_game.name));
-            frame.render_interactive_widget(away_button, spans_split[4]);
+
+            let name_split = Layout::horizontal([
+                Constraint::Length(game.away_team_in_game.name.len() as u16),
+                Constraint::Fill(1),
+            ])
+            .split(spans_split[3]);
+            frame.render_interactive_widget(away_button, name_split[0]);
         } else {
-            frame.render_widget(
-                Paragraph::new(format!("{:<}", game.away_team_in_game.name)),
-                spans_split[4],
-            );
+            frame.render_widget(format!("{:<}", game.away_team_in_game.name), spans_split[3]);
         }
-        frame.render_widget(Paragraph::new(away_dot), spans_split[5]);
+
+        let possession_indicator = if action.possession == Possession::Home {
+            Paragraph::new("●").left_aligned()
+        } else {
+            Paragraph::new("●").right_aligned()
+        };
+
+        frame.render_widget(
+            possession_indicator,
+            spans_split[2].inner(Margin::new(1, 0)),
+        );
 
         let timer_lines = self.build_timer_lines(world, game);
-        frame.render_widget(Paragraph::new(timer_lines).centered(), central_split[4]);
+        frame.render_widget(Paragraph::new(timer_lines).centered(), central_split[5]);
         match home_score {
             x if x < 10 => frame.render_widget((home_score % 10).big_font(), digit_split[4]),
             x if x < 100 => {
@@ -771,8 +780,9 @@ impl GamePanel {
             };
 
             let name_span = {
-                let style =
-                    ((MAX_SKILL - player.tiredness) / MAX_SKILL * GREEN_STYLE_SKILL).style();
+                let style = UiStyled::style(
+                    &((MAX_SKILL - player.tiredness) / MAX_SKILL * GREEN_STYLE_SKILL),
+                );
                 Span::styled(player.info.short_name(), style)
             };
 
@@ -871,8 +881,9 @@ impl GamePanel {
             };
 
             let name_span = {
-                let style =
-                    ((MAX_SKILL - player.tiredness) / MAX_SKILL * GREEN_STYLE_SKILL).style();
+                let style = UiStyled::style(
+                    &((MAX_SKILL - player.tiredness) / MAX_SKILL * GREEN_STYLE_SKILL),
+                );
                 Span::styled(player.info.short_name(), style)
             };
 
@@ -882,7 +893,7 @@ impl GamePanel {
                 "▰".repeat(morale_length),
                 "▱".repeat(bars_length - morale_length),
             );
-            let morale_style = (player.morale / MAX_SKILL * GREEN_STYLE_SKILL).style();
+            let morale_style = UiStyled::style(&(player.morale / MAX_SKILL * GREEN_STYLE_SKILL));
             let morale_span = Span::styled(morale_string, morale_style);
 
             let tiredness_length =
@@ -893,7 +904,7 @@ impl GamePanel {
                 "▱".repeat(tiredness_length),
             );
             let energy_style =
-                ((MAX_SKILL - player.tiredness) / MAX_SKILL * GREEN_STYLE_SKILL).style();
+                UiStyled::style(&((MAX_SKILL - player.tiredness) / MAX_SKILL * GREEN_STYLE_SKILL));
             let energy_span = Span::styled(energy_string, energy_style);
 
             let cells = vec![
@@ -1162,9 +1173,11 @@ impl GamePanel {
 }
 
 impl Screen for GamePanel {
-    fn update(&mut self, world: &World) -> AppResult<()> {
+    fn tick(&mut self) {
         self.tick += 1;
+    }
 
+    fn update(&mut self, world: &World) -> AppResult<()> {
         if world.dirty_ui {
             self.game_ids = world
                 .games
@@ -1325,26 +1338,15 @@ impl Screen for GamePanel {
                 Line::from(" Browse upcoming, ongoing and recently finished games. Pick"),
                 Line::from(" one to follow live play-by-play commentary, the box score and"),
                 Line::from(" the pitch view."),
+                Line::from(""),
+                Line::from(" Pick your starting roster and tactics in My Team."),
+                Line::from(" Find a side to challenge from the Crews list."),
+                Line::from(" Track tournament brackets in Tournaments."),
             ],
             vec![
-                (
-                    " Pick your starting roster and tactics in ",
-                    "My Team",
-                    UiTab::MyTeam,
-                    ".",
-                ),
-                (
-                    " Find a side to challenge from the ",
-                    "Crews",
-                    UiTab::Crews,
-                    " list.",
-                ),
-                (
-                    " Track tournament brackets in ",
-                    "Tournaments",
-                    UiTab::Tournaments,
-                    ".",
-                ),
+                tab_link("My Team", UiTab::MyTeam),
+                tab_link("Crews", UiTab::Crews),
+                tab_link("Tournaments", UiTab::Tournaments),
             ],
             vec![
                 Line::from(" Controls:"),

@@ -155,6 +155,12 @@ pub fn current_round(num_participants: usize, games_completed: usize) -> usize {
 
 fn compute_round_sizes(participants: usize) -> Vec<usize> {
     let num_rounds = number_of_rounds(participants);
+    if num_rounds == 0 {
+        log::error!(
+            "compute_round_sizes: participants={participants} gives num_rounds=0, returning empty bracket"
+        );
+        return vec![];
+    }
     let mut rounds = Vec::with_capacity(num_rounds);
     let next_pot = 1usize << (num_rounds - 1);
     rounds.push(participants - next_pot);
@@ -280,6 +286,10 @@ pub fn get_bracket_lines(
     // For instance, 5 participants would give round_sizes = [1, 2, 1];
     let round_sizes = compute_round_sizes(num_participants);
     let num_round = round_sizes.len();
+
+    if num_round == 0 {
+        return vec![];
+    }
 
     // We start filling in the descriptions using the past_game_summaries (older active_games).
     let all_games_len = past_game_summaries.len() + active_games.len();
@@ -847,5 +857,13 @@ mod tests {
         }
 
         Ok(())
+    }
+
+    #[test]
+    fn test_get_bracket_lines_below_two_participants_is_empty() {
+        for n in [0usize, 1] {
+            let brackets = get_bracket_lines(Some("winner"), n, &[], &[], TeamId::default(), 0);
+            assert!(brackets.is_empty());
+        }
     }
 }

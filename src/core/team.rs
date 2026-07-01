@@ -349,17 +349,19 @@ impl Team {
 
     pub fn can_teleport_to(&self, to: &Planet) -> AppResult<()> {
         let has_teleportation_pad = self.home_planet_id == to.id
-            || to
-                .upgrades
-                .contains(&AsteroidUpgradeTarget::TeleportationPad);
+            || to.upgrades.contains(&PlanetUpgradeTarget::TeleportationPad);
 
         if !has_teleportation_pad {
             return Err(anyhow!("{} has no teleportation pad", to.name));
         }
 
         // If it has a pad but it's not your own asteroid, cannot teleport
-        if self.home_planet_id != to.id && !self.asteroid_ids.contains(&to.id) {
-            return Err(anyhow!("Cannot use teleportation pad on {}", to.name));
+        // unless the asteroid opened its pad to external crews.
+        if self.home_planet_id != to.id
+            && !self.asteroid_ids.contains(&to.id)
+            && !to.allow_external_teleport
+        {
+            return Err(anyhow!("Cannot use teleportation pad"));
         }
 
         let rum_required = self.teleport_rum_cost(to.id);
@@ -372,7 +374,11 @@ impl Team {
         Ok(())
     }
 
-    pub fn can_add_player(&self, player: &Player) -> AppResult<()> {
+    pub fn can_add_player(
+        &self,
+        player: &Player,
+        is_in_space_cove_on: Option<PlanetId>,
+    ) -> AppResult<()> {
         if player.team.is_some() {
             return Err(anyhow!("Already in a team"));
         }
@@ -402,12 +408,22 @@ impl Team {
             return Err(anyhow!("Not on the same planet"));
         }
 
+        if !self.can_hire_from_space_cove(is_in_space_cove_on) {
+            return Err(anyhow!("Not in team space cove"));
+        }
+
         Ok(())
+    }
+
+    /// A free pirate standing in a space cove can only be hired by that cove's team.
+    pub fn can_hire_from_space_cove(&self, player_space_cove: Option<PlanetId>) -> bool {
+        player_space_cove.is_none()
+            || self.space_cove.as_ref().map(|cove| cove.planet_id) == player_space_cove
     }
 
     // This function is necessary for local teams to consider hiring a player (even if the crew is full).
     pub fn can_consider_hiring_player(&self, player: &Player) -> AppResult<()> {
-        let hiring_cost = player.hire_cost(self.reputation);
+        let hiring_cost = player.hire_cost();
         if self.balance() < hiring_cost {
             return Err(anyhow!("Not enough money {hiring_cost}"));
         }
@@ -420,8 +436,12 @@ impl Team {
         Ok(())
     }
 
-    pub fn can_hire_player(&self, player: &Player) -> AppResult<()> {
-        self.can_add_player(player)?;
+    pub fn can_hire_player(
+        &self,
+        player: &Player,
+        is_in_space_cove_on: Option<PlanetId>,
+    ) -> AppResult<()> {
+        self.can_add_player(player, is_in_space_cove_on)?;
         self.can_consider_hiring_player(player)?;
 
         Ok(())
@@ -526,20 +546,23 @@ impl Team {
             None => {
                 return Err(anyhow!("Cannot organize a tournament without a space cove"));
             }
-            Some(cove) => match cove.state {
-                SpaceCoveState::UnderConstruction => {
-                    return Err(anyhow!(
-                        "Cannot organize a tournament if space cove is not ready"
-                    ))
-                }
-                SpaceCoveState::Ready => {
+            Some(cove) => {
+                if cove.is_ready() {
                     if !matches!(self.is_on_planet(), Some(id) if id == cove.planet_id) {
                         return Err(anyhow!(
                             "Cannot organize a tournament while not at your space cove"
                         ));
                     }
+
+                    if !cove.has_stadium() {
+                        return Err(anyhow!("Cannot organize a tournament whitout a stadium"));
+                    }
+                } else {
+                    return Err(anyhow!(
+                        "Cannot organize a tournament if space cove is not ready"
+                    ));
                 }
-            },
+            }
         }
 
         // FIXME: add conditions on kartoffeln
@@ -912,14 +935,14 @@ impl Team {
     pub fn can_upgrade_asteroid(
         &self,
         asteroid: &Planet,
-        upgrade: &Upgrade<AsteroidUpgradeTarget>,
+        upgrade: &Upgrade<PlanetUpgradeTarget>,
     ) -> AppResult<()> {
         if asteroid.upgrades.contains(&upgrade.target) {
             return Err(anyhow!("Asteroid already has this upgrade"));
         }
 
         // Special rules for space cove: it has to be unique across all asteroids.
-        if upgrade.target == AsteroidUpgradeTarget::SpaceCove && self.space_cove.is_some() {
+        if upgrade.target == PlanetUpgradeTarget::SpaceCove && self.space_cove.is_some() {
             return Err(anyhow!("You already have a space cove"));
         }
 
@@ -954,6 +977,37 @@ impl Team {
         }
 
         for (resource, amount) in upgrade.target.upgrade_cost().iter() {
+            if self.resources.value(resource) < *amount {
+                return Err(anyhow!("Insufficient resources"));
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn can_upgrade_space_cove(&self, target: SpaceCoveUpgradeTarget) -> AppResult<()> {
+        let cove = self
+            .space_cove
+            .as_ref()
+            .ok_or(anyhow!("You don't have a space cove"))?;
+
+        if !cove.is_ready() {
+            return Err(anyhow!("The space cove is still under construction"));
+        }
+
+        if cove.upgrades.contains(&target) {
+            return Err(anyhow!("{target} is already built"));
+        }
+
+        if cove.pending_upgrade.is_some() {
+            return Err(anyhow!("Already building something in the cove"));
+        }
+
+        if self.is_on_planet() != Some(cove.planet_id) {
+            return Err(anyhow!("Can only build at the space cove"));
+        }
+
+        for (resource, amount) in target.upgrade_cost().iter() {
             if self.resources.value(resource) < *amount {
                 return Err(anyhow!("Insufficient resources"));
             }

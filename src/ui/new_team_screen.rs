@@ -36,10 +36,10 @@ use ratatui::{
     text::Span,
     widgets::{Clear, Paragraph, Wrap},
 };
+use ratatui_textarea::{CursorMove, TextArea};
 use std::cmp::min;
 use std::collections::HashMap;
 use strum::IntoEnumIterator;
-use ratatui_textarea::{CursorMove, TextArea};
 use uuid::uuid;
 
 const INITIAL_TEAM_SIZE: usize = 5;
@@ -664,7 +664,7 @@ impl NewTeamScreen {
                     format!(
                         "{:max_width$}{:>9}",
                         name,
-                        format_satoshi(player.hire_cost(0.0),)
+                        format_satoshi(player.hire_cost(),)
                     ),
                     style,
                 )
@@ -691,11 +691,7 @@ impl NewTeamScreen {
             &mut self.player_list_state
         };
 
-        frame.render_stateful_interactive_widget(
-            list.block(block.title(title)),
-            area,
-            state,
-        );
+        frame.render_stateful_interactive_widget(list.block(block.title(title)), area, state);
         Ok(())
     }
 
@@ -789,9 +785,11 @@ impl NewTeamScreen {
 }
 
 impl Screen for NewTeamScreen {
-    fn update(&mut self, world: &World) -> AppResult<()> {
+    fn tick(&mut self) {
         self.tick += 1;
+    }
 
+    fn update(&mut self, world: &World) -> AppResult<()> {
         // If planets is empty, we initialize the list of planets and planet_players
         if self.planet_ids.is_empty() {
             self.planet_ids = world
@@ -803,27 +801,29 @@ impl Screen for NewTeamScreen {
                 .collect_vec();
 
             for player in world.players.values() {
-                if player.team.is_none() {
-                    let planet_players = self
-                        .planet_players
-                        .entry(player.info.home_planet_id)
-                        .or_default();
-                    planet_players.push((player.id, player.hire_cost(0.0)));
-                    planet_players.sort_by(|a, b| {
-                        let p1 = world
-                            .players
-                            .get(&a.0)
-                            .map(|p| p.hire_cost(0.0))
-                            .unwrap_or_default();
-                        let p2 = world
-                            .players
-                            .get(&b.0)
-                            .map(|p| p.hire_cost(0.0))
-                            .unwrap_or_default();
-                        p2.cmp(&p1)
-                    });
-                }
+                // Free pirates only, grouped by the planet they're standing on.
+                let planet_id = match player.is_on_planet() {
+                    Some(planet_id) if player.team.is_none() => planet_id,
+                    _ => continue,
+                };
+
+                let planet_players = self.planet_players.entry(planet_id).or_default();
+                planet_players.push((player.id, player.hire_cost()));
+                planet_players.sort_by(|a, b| {
+                    let p1 = world
+                        .players
+                        .get(&a.0)
+                        .map(|p| p.hire_cost())
+                        .unwrap_or_default();
+                    let p2 = world
+                        .players
+                        .get(&b.0)
+                        .map(|p| p.hire_cost())
+                        .unwrap_or_default();
+                    p2.cmp(&p1)
+                });
             }
+
             self.set_index(0);
         }
 

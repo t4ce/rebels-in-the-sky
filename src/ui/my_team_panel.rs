@@ -1,5 +1,5 @@
 use super::ui_frame::UiFrame;
-use super::ui_screen::UiTab;
+use super::ui_screen::{tab_link, UiTab};
 use super::{
     button::Button,
     clickable_list::ClickableListState,
@@ -13,6 +13,7 @@ use super::{
 };
 use crate::game_engine::timer::Period;
 use crate::types::{HashMapWithResult, Tick};
+use crate::ui::checkbox::Checkbox;
 use crate::ui::popup_message::PopupMessage;
 use crate::ui::ui_key;
 use crate::{
@@ -207,7 +208,32 @@ impl MyTeamPanel {
     fn render_market(&mut self, frame: &mut UiFrame, world: &World, area: Rect) -> AppResult<()> {
         let split = Layout::horizontal([Constraint::Length(48), Constraint::Min(48)]).split(area);
         self.render_planet_markets(frame, world, split[0])?;
-        self.render_market_buttons(frame, world, split[1])?;
+
+        let own_team = world.get_own_team()?;
+        match own_team.current_location {
+            TeamLocation::OnPlanet { planet_id } => {
+                let planet = world.planets.get_or_err(&planet_id)?;
+                render_market_on_planet(frame, world, own_team, planet, split[1])?;
+            }
+            TeamLocation::Travelling { .. } => {
+                frame.render_widget(default_block().title("Market"), area);
+                frame.render_widget(
+                    Paragraph::new("There is no market available while travelling.").centered(),
+                    split[1],
+                );
+            }
+            TeamLocation::Exploring { .. } => {
+                frame.render_widget(default_block().title("Market"), area);
+                frame.render_widget(
+                    Paragraph::new("There is no market available while exploring.").centered(),
+                    split[1],
+                );
+            }
+            TeamLocation::OnSpaceAdventure { .. } => {
+                // This sbhould be unreachable
+                return Err(anyhow!("Team is on a space adventure"));
+            }
+        };
 
         Ok(())
     }
@@ -292,206 +318,6 @@ impl MyTeamPanel {
             split[1].inner(Margin {
                 horizontal: 1,
                 vertical: 1,
-            }),
-        );
-
-        Ok(())
-    }
-
-    fn render_market_buttons(
-        &self,
-        frame: &mut UiFrame,
-        world: &World,
-        area: Rect,
-    ) -> AppResult<()> {
-        let own_team = world.get_own_team()?;
-        let inner_area = area.inner(Margin {
-            horizontal: 1,
-            vertical: 1,
-        });
-
-        let planet_id = match own_team.current_location {
-            TeamLocation::OnPlanet { planet_id } => planet_id,
-            TeamLocation::Travelling { .. } => {
-                frame.render_widget(default_block().title("Market"), area);
-                frame.render_widget(
-                    Paragraph::new("There is no market available while travelling.").centered(),
-                    inner_area,
-                );
-                return Ok(());
-            }
-            TeamLocation::Exploring { .. } => {
-                frame.render_widget(default_block().title("Market"), area);
-                frame.render_widget(
-                    Paragraph::new("There is no market available while exploring.").centered(),
-                    inner_area,
-                );
-                return Ok(());
-            }
-            TeamLocation::OnSpaceAdventure { .. } => {
-                return Err(anyhow!("Team is on a space adventure"))
-            }
-        };
-
-        let planet = world.planets.get_or_err(&planet_id)?;
-        frame.render_widget(
-            default_block().title(format!("Planet {} Market", planet.name)),
-            area,
-        );
-        if !planet.has_market() {
-            frame.render_widget(
-                Paragraph::new(vec![
-                    Line::from("There is no market available on this planet."),
-                    Line::from("Try another planet with more population."),
-                ])
-                .centered(),
-                inner_area,
-            );
-            return Ok(());
-        }
-
-        let button_split = Layout::vertical([
-            Constraint::Length(1),
-            Constraint::Length(3),
-            Constraint::Length(3),
-            Constraint::Length(3),
-            Constraint::Length(3),
-            Constraint::Min(3),
-        ])
-        .split(inner_area.inner(Margin {
-            horizontal: 3,
-            vertical: 0,
-        }));
-
-        let layout = Layout::horizontal([
-            Constraint::Length(12), // name
-            Constraint::Max(6),     // buy 1
-            Constraint::Max(6),     // buy 10
-            Constraint::Max(6),     // buy 100
-            Constraint::Max(6),     // sell 1
-            Constraint::Max(6),     // sell 10
-            Constraint::Max(6),     // sell 100
-            Constraint::Length(11), // price
-            Constraint::Min(0),     // have
-        ]);
-
-        frame.render_widget(
-            Paragraph::new(Span::styled(
-                "        Key        Buy               Sell         Prices    In Stiva".to_string(),
-                UiStyle::HEADER.bold(),
-            )),
-            button_split[0],
-        );
-
-        let buy_ui_keys = [
-            ui_key::market::BUY_GOLD,
-            ui_key::market::BUY_SCRAPS,
-            ui_key::market::BUY_FUEL,
-            ui_key::market::BUY_RUM,
-        ];
-        let sell_ui_keys = [
-            ui_key::market::SELL_GOLD,
-            ui_key::market::SELL_SCRAPS,
-            ui_key::market::SELL_FUEL,
-            ui_key::market::SELL_RUM,
-        ];
-
-        for (button_split_idx, resource) in [
-            Resource::GOLD,
-            Resource::SCRAPS,
-            Resource::FUEL,
-            Resource::RUM,
-        ]
-        .iter()
-        .enumerate()
-        {
-            let resource_split = layout.split(button_split[button_split_idx + 1]);
-            let merchant_bonus = TeamBonus::TradePrice.current_team_bonus(world, &own_team.id)?;
-            let buy_unit_cost = planet.resource_buy_price(*resource, merchant_bonus);
-            let sell_unit_cost = planet.resource_sell_price(*resource, merchant_bonus);
-            frame.render_widget(
-                Paragraph::new(Line::from(vec![
-                    Span::styled(format!("{:<6} ", resource.to_string()), resource.style()),
-                    Span::styled(format!("{}", buy_ui_keys[button_split_idx]), UiStyle::OK),
-                    Span::raw("/".to_string()),
-                    Span::styled(
-                        format!("{}", sell_ui_keys[button_split_idx]),
-                        UiStyle::ERROR,
-                    ),
-                ])),
-                resource_split[0].inner(Margin::new(1, 1)),
-            );
-            frame.render_widget(
-                Paragraph::new(Line::from(vec![
-                    Span::styled(format!("{buy_unit_cost:>4}"), UiStyle::OK),
-                    Span::raw("/".to_string()),
-                    Span::styled(format!("{sell_unit_cost:<4}"), UiStyle::ERROR),
-                ])),
-                resource_split[7].inner(Margin::new(1, 1)),
-            );
-
-            frame.render_widget(
-                Paragraph::new(format!(
-                    "{:^7}",
-                    own_team.resources.value(resource).to_string()
-                )),
-                resource_split[8].inner(Margin::new(1, 1)),
-            );
-
-            let max_buy_amount = own_team.max_resource_buy_amount(*resource, buy_unit_cost);
-            for (idx, amount) in [1, 10, 100.min(max_buy_amount) as i32].iter().enumerate() {
-                if let Ok(btn) = trade_resource_button(
-                    world,
-                    *resource,
-                    *amount,
-                    buy_unit_cost,
-                    if idx == 0 {
-                        Some(buy_ui_keys[button_split_idx])
-                    } else {
-                        None
-                    },
-                    UiStyle::OK,
-                ) {
-                    frame.render_interactive_widget(btn, resource_split[idx + 1]);
-                }
-            }
-
-            let max_sell_amount = own_team.max_resource_sell_amount(*resource);
-            for (idx, amount) in [1, 10, 100.min(max_sell_amount) as i32].iter().enumerate() {
-                if let Ok(btn) = trade_resource_button(
-                    world,
-                    *resource,
-                    -*amount,
-                    sell_unit_cost,
-                    if idx == 0 {
-                        Some(sell_ui_keys[button_split_idx])
-                    } else {
-                        None
-                    },
-                    UiStyle::ERROR,
-                ) {
-                    frame.render_interactive_widget(btn, resource_split[idx + 4]);
-                }
-            }
-        }
-
-        frame.render_widget(
-            Paragraph::new(vec![
-                Line::from(format!("Treasury {}", format_satoshi(own_team.balance()))),
-                Line::from(get_fuel_spans(
-                    own_team.fuel(),
-                    own_team.fuel_capacity(),
-                    BARS_LENGTH,
-                )),
-                Line::from(get_storage_spans(
-                    &own_team.resources,
-                    own_team.spaceship.storage_capacity(),
-                    BARS_LENGTH,
-                )),
-            ]),
-            button_split[5].inner(Margin {
-                horizontal: 1,
-                vertical: 0,
             }),
         );
 
@@ -751,31 +577,19 @@ impl MyTeamPanel {
             Paragraph::new("Accept challenges").centered(),
             challenges_split[0].inner(Margin::new(0, 1)),
         );
-        let local_challenge_button = Button::new(
-            format!(
-                "local:{}",
-                if own_team.autonomous_strategy.challenge_local {
-                    "on"
-                } else {
-                    "off"
-                }
-            ),
+        let local_challenge_button = Checkbox::new(
+            "local",
             UiCallback::ToggleTeamAutonomousStrategyForLocalChallenges,
+            own_team.autonomous_strategy.challenge_local,
         )
         .set_hover_text("Accept challenges from local teams automatically.".to_string())
         .set_hotkey(ui_key::team::TOGGLE_ACCEPT_LOCAL_CHALLENGES);
         frame.render_interactive_widget(local_challenge_button, challenges_split[1]);
 
-        let network_challenge_button = Button::new(
-            format!(
-                "network:{}",
-                if own_team.autonomous_strategy.challenge_network {
-                    "on"
-                } else {
-                    "off"
-                }
-            ),
+        let network_challenge_button = Checkbox::new(
+            "network",
             UiCallback::ToggleTeamAutonomousStrategyForNetworkChallenges,
+            own_team.autonomous_strategy.challenge_network,
         )
         .set_hover_text("Accept challenges from network teams automatically.".to_string())
         .set_hotkey(ui_key::team::TOGGLE_ACCEPT_NETWORK_CHALLENGES);
@@ -890,7 +704,7 @@ impl MyTeamPanel {
                     let text = format!(
                         " {:>12} {:>3}-{:<3} {:<}",
                         game.home_team_in_game.name,
-                        action.home_score, // FIXME: this is not the correct score
+                        action.home_score,
                         action.away_score,
                         game.away_team_in_game.name,
                     );
@@ -1642,20 +1456,14 @@ impl MyTeamPanel {
 
             let possible_upgrade = if !asteroid
                 .upgrades
-                .contains(&AsteroidUpgradeTarget::TeleportationPad)
+                .contains(&PlanetUpgradeTarget::TeleportationPad)
             {
                 let bonus = TeamBonus::Upgrades.current_team_bonus(world, &own_team.id)?;
-                Some(Upgrade::new(AsteroidUpgradeTarget::TeleportationPad, bonus))
+                Some(Upgrade::new(PlanetUpgradeTarget::TeleportationPad, bonus))
             } else if own_team.has_space_cove_on().is_none() {
                 // Build space cove button
                 let bonus = TeamBonus::Upgrades.current_team_bonus(world, &own_team.id)?;
-                Some(Upgrade::new(AsteroidUpgradeTarget::SpaceCove, bonus))
-            } else if matches!(own_team.has_space_cove_on(), Some(id) if id == asteroid.id)
-                && !asteroid.upgrades.contains(&AsteroidUpgradeTarget::Market)
-            {
-                // Build market button
-                let bonus = TeamBonus::Upgrades.current_team_bonus(world, &own_team.id)?;
-                Some(Upgrade::new(AsteroidUpgradeTarget::Market, bonus))
+                Some(Upgrade::new(PlanetUpgradeTarget::SpaceCove, bonus))
             } else {
                 None
             };
@@ -1750,10 +1558,7 @@ impl MyTeamPanel {
             .planet_zoom_out_frame_lines(asteroid, 0, world)?;
         frame.render_widget(Paragraph::new(img_lines).centered(), split[0]);
 
-        if asteroid
-            .upgrades
-            .contains(&AsteroidUpgradeTarget::SpaceCove)
-        {
+        if asteroid.upgrades.contains(&PlanetUpgradeTarget::SpaceCove) {
             let b_split = Layout::horizontal([Constraint::Ratio(1, 2), Constraint::Ratio(1, 2)])
                 .split(split[1]);
             frame.render_interactive_widget(teleport_button(world, asteroid_id)?, b_split[0]);
@@ -2465,8 +2270,11 @@ impl MyTeamPanel {
 }
 
 impl Screen for MyTeamPanel {
-    fn update(&mut self, world: &World) -> AppResult<()> {
+    fn tick(&mut self) {
         self.tick += 1;
+    }
+
+    fn update(&mut self, world: &World) -> AppResult<()> {
         self.own_team_id = world.own_team_id;
         let own_team = world.get_own_team()?;
 
@@ -2476,10 +2284,15 @@ impl Screen for MyTeamPanel {
         };
 
         if self.planet_markets.is_empty() || world.dirty_ui {
+            let coves: HashMap<_, _> = world
+                .teams
+                .values()
+                .filter_map(|team| team.space_cove.as_ref().map(|cove| (cove.planet_id, cove)))
+                .collect();
             self.planet_markets = world
                 .planets
                 .iter()
-                .filter(|(_, planet)| planet.has_market())
+                .filter(|(_, planet)| planet.has_market(coves.get(&planet.id).copied()))
                 .sorted_by(|(_, a), (_, b)| a.name.cmp(&b.name))
                 .map(|(id, _)| *id)
                 .collect::<Vec<PlanetId>>();
@@ -2671,32 +2484,17 @@ impl Screen for MyTeamPanel {
             vec![
                 Line::from(" The captain's bridge: manage roster, training, tactics, ships,"),
                 Line::from(" markets, asteroids, and games. Use Tab to cycle the inner view."),
+                Line::from(""),
+                Line::from(" Recruit new pirates from the Pirates panel."),
+                Line::from(" Scout rivals and challenge them from Crews."),
+                Line::from(" Watch your scheduled or finished games in Games."),
+                Line::from(" Travel between planets via the Galaxy star map."),
             ],
             vec![
-                (
-                    " Recruit new pirates from the ",
-                    "Pirates",
-                    UiTab::Pirates,
-                    " panel.",
-                ),
-                (
-                    " Scout rivals and challenge them from ",
-                    "Crews",
-                    UiTab::Crews,
-                    ".",
-                ),
-                (
-                    " Watch your scheduled or finished games in ",
-                    "Games",
-                    UiTab::Games,
-                    ".",
-                ),
-                (
-                    " Travel between planets via the ",
-                    "Galaxy",
-                    UiTab::Galaxy,
-                    " star map.",
-                ),
+                tab_link("Pirates", UiTab::Pirates),
+                tab_link("Crews", UiTab::Crews),
+                tab_link("Games", UiTab::Games),
+                tab_link("Galaxy", UiTab::Galaxy),
             ],
             vec![
                 Line::from(" Controls:"),
