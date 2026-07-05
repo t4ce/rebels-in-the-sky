@@ -9,12 +9,12 @@ use crate::{
     image::color_map::SkinColorMap,
     types::{AppResult, HashMapWithResult, PlanetId, SystemTimeTick, TeamId, Tick},
 };
+use rand::distributions::{Distribution, WeightedIndex};
 use rand::{seq::IteratorRandom, SeedableRng};
 use rand_chacha::ChaCha8Rng;
-use rand_distr::{weighted::WeightedIndex, Distribution};
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
-use std::fmt::Display;
+use core::fmt::Display;
 use strum::IntoEnumIterator;
 use strum::{Display, FromRepr};
 use strum_macros::EnumIter;
@@ -112,7 +112,7 @@ impl Default for Population {
 }
 
 impl Display for Population {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Human { .. } => write!(f, "Human"),
             Self::Yardalaim => write!(f, "Yardalaim"),
@@ -127,7 +127,8 @@ impl Display for Population {
 
 impl Population {
     pub fn random() -> Self {
-        let rng = &mut ChaCha8Rng::from_rng(&mut rand::rng());
+        let rng = &mut ChaCha8Rng::from_rng(&mut rand::thread_rng())
+            .expect("thread RNG should seed ChaCha8Rng");
         Self::iter()
             .choose(rng)
             .expect("There should be at lease one Population to choose from.")
@@ -433,7 +434,7 @@ pub enum TrainingFocus {
 }
 
 impl Display for TrainingFocus {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Athletics => write!(f, "Athletics"),
             Self::Offense => write!(f, "Offense"),
@@ -582,7 +583,7 @@ pub enum TeamBonus {
 }
 
 impl Display for TeamBonus {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Exploration => write!(f, "Exploration"),
             Self::Reputation => write!(f, "Reputation"),

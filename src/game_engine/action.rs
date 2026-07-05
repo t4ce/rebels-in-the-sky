@@ -11,8 +11,8 @@ use crate::{
     },
 };
 use core::fmt::Debug;
+use rand::distributions::{Distribution, WeightedIndex};
 use rand_chacha::ChaCha8Rng;
-use rand_distr::{weighted::WeightedIndex, Distribution};
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use strum::EnumIter;

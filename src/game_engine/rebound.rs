@@ -11,9 +11,9 @@ use crate::{
         types::GameStatsMap,
     },
 };
-use rand::{seq::IndexedRandom, RngExt};
+use rand::{seq::SliceRandom, Rng};
 use rand_chacha::ChaCha8Rng;
-use std::collections::HashMap;
+use alloc::collections::HashMap;
 
 const MIN_REBOUND_VALUE: i16 = 40;
 const REBOUND_POSITION_SCALING: f32 = 12.0;
@@ -193,7 +193,7 @@ pub(crate) fn execute(
                 attackers: vec![attack_rebounder_idx],
                 attack_stats_update: Some(attack_stats_update),
                 start_at: input.end_at,
-                end_at: input.end_at.plus(1 + action_rng.random_range(0..=1)),
+                end_at: input.end_at.plus(1 + action_rng.gen_range(0..=1)),
                 home_score: input.home_score,
                 away_score: input.away_score,
                 ..Default::default()
@@ -237,7 +237,7 @@ pub(crate) fn execute(
                 attackers: vec![attack_rebounder_idx],
                 attack_stats_update: Some(attack_stats_update),
                 start_at: input.end_at,
-                end_at: input.end_at.plus(4 + action_rng.random_range(0..=3)),
+                end_at: input.end_at.plus(4 + action_rng.gen_range(0..=3)),
                 home_score: input.home_score,
                 away_score: input.away_score,
                 ..Default::default()
@@ -282,7 +282,7 @@ pub(crate) fn execute(
                 .clone(),
                 defense_stats_update: Some(defence_stats_update),
                 start_at: input.end_at,
-                end_at: input.end_at.plus(5 + action_rng.random_range(0..=6)),
+                end_at: input.end_at.plus(5 + action_rng.gen_range(0..=6)),
                 home_score: input.home_score,
                 away_score: input.away_score,
                 ..Default::default()
@@ -301,7 +301,7 @@ pub(crate) fn execute(
             .expect("There should be an option")
             .to_string(),
             start_at: input.end_at,
-            end_at: input.end_at.plus(5 + action_rng.random_range(0..=6)),
+            end_at: input.end_at.plus(5 + action_rng.gen_range(0..=6)),
             home_score: input.home_score,
             away_score: input.away_score,
             ..Default::default()

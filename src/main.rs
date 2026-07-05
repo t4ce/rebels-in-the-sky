@@ -1,47 +1,23 @@
 use clap::Parser;
 use log::LevelFilter;
-use log4rs::append::file::FileAppender;
-use log4rs::config::{Appender, Config, Root};
-use log4rs::encode::pattern::PatternEncoder;
 use rebels::app::App;
 use rebels::args::AppArgs;
-#[cfg(any(feature = "relayer", feature = "ssh"))]
+#[cfg(feature = "relayer")]
 use rebels::args::AppMode;
+use rebels::logging;
 #[cfg(feature = "relayer")]
 use rebels::relayer::Relayer;
-#[cfg(feature = "ssh")]
-use rebels::ssh_game::RebelsGame;
-use rebels::store::store_path;
 use rebels::tui::Tui;
 use rebels::types::AppResult;
 
-#[cfg(feature = "ssh")]
-const DEFAULT_SSH_PORT: u16 = 3788;
-
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> AppResult<()> {
-    let logfile_path = store_path("rebels.log")?;
-    let logfile = FileAppender::builder()
-        .append(false)
-        .encoder(Box::new(PatternEncoder::new("{l} - {m}\n")))
-        .build(logfile_path)?;
-
-    let config = Config::builder()
-        .appender(Appender::builder().build("logfile", Box::new(logfile)))
-        .build(Root::builder().appender("logfile").build(LevelFilter::Info))?;
-    log4rs::init_config(config)?;
+    logging::init(LevelFilter::Info)?;
 
     let args = AppArgs::parse();
 
-    #[cfg(any(feature = "relayer", feature = "ssh"))]
+    #[cfg(feature = "relayer")]
     let mode = args.app_mode();
-
-    #[cfg(feature = "ssh")]
-    if mode == AppMode::SSHServer {
-        let port = args.ssh_port.unwrap_or(DEFAULT_SSH_PORT);
-        frittura_ssh_core::run_server(RebelsGame::new(), port).await?;
-        return Ok(());
-    }
 
     #[cfg(feature = "relayer")]
     if mode == AppMode::Relayer {

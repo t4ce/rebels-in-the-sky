@@ -99,7 +99,10 @@ mod tests {
             .teams
             .values()
             .filter(|team| team.id != own_team.id)
-            .choose(&mut ChaCha8Rng::from_rng(&mut rand::rng()))
+            .choose(
+                &mut ChaCha8Rng::from_rng(&mut rand::thread_rng())
+                    .expect("thread RNG should seed ChaCha8Rng"),
+            )
             .expect("There should be one other team")
             .clone();
         target_team.current_location = own_team.current_location;
@@ -139,7 +142,7 @@ mod tests {
             .teams
             .values()
             .filter(|team| team.home_planet_id != own_team.home_planet_id)
-            .choose(&mut rand::rng())
+            .choose(&mut rand::thread_rng())
             .expect("There should be one team");
 
         let target_team_id = target_team.id;
@@ -200,7 +203,8 @@ mod tests {
         let mut app = App::test_default()?;
 
         let world = &mut app.world;
-        let rng = &mut ChaCha8Rng::from_rng(&mut rand::rng());
+        let rng = &mut ChaCha8Rng::from_rng(&mut rand::thread_rng())
+            .expect("thread RNG should seed ChaCha8Rng");
 
         let home_planet_id = world.planets.keys().next().unwrap().clone();
 

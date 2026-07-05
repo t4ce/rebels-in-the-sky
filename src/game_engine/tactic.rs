@@ -1,9 +1,9 @@
 use super::action::Action;
+use rand::distributions::{Distribution, WeightedIndex};
 use rand::seq::IteratorRandom;
 use rand_chacha::ChaCha8Rng;
-use rand_distr::{weighted::WeightedIndex, Distribution};
 use serde_repr::{Deserialize_repr, Serialize_repr};
-use std::fmt::Display;
+use core::fmt::Display;
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
@@ -18,7 +18,7 @@ pub enum Tactic {
 }
 
 impl Display for Tactic {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Balanced => write!(f, "Balanced"),
             Self::BigPirates => write!(f, "Big Pirates"),
@@ -31,7 +31,7 @@ impl Display for Tactic {
 impl Tactic {
     pub fn random(rng: &mut ChaCha8Rng) -> Self {
         Self::iter()
-            .choose_stable(rng)
+            .choose(rng)
             .expect("There should be at least a tactic")
     }
 

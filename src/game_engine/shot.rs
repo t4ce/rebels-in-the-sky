@@ -10,9 +10,9 @@ use crate::core::{
     skill::GameSkill,
     GamePosition, Trait, MAX_SKILL,
 };
-use rand::{seq::IndexedRandom, RngExt};
+use rand::{seq::SliceRandom, Rng};
 use rand_chacha::ChaCha8Rng;
-use std::collections::HashMap;
+use alloc::collections::HashMap;
 
 pub(crate) fn execute_close_shot(
     input: &ActionOutput,
@@ -77,7 +77,7 @@ pub(crate) fn execute_dunk(
 /// Whether a player attempts a dunk instead of a layup.
 /// Based on vertical leap, height, and the Showpirate trait.
 pub(crate) fn should_dunk(shooter: &Player, action_rng: &mut ChaCha8Rng) -> bool {
-    action_rng.random_bool(
+    action_rng.gen_bool(
         (DUNK_PROBABILITY
             * if matches!(shooter.special_trait, Some(Trait::Showpirate)) {
                 2.0
@@ -628,7 +628,7 @@ fn execute_shot(
                 situation: ActionSituation::MissedShot,
                 description,
                 start_at: input.end_at,
-                end_at: input.end_at.plus(1 + action_rng.random_range(0..=2)),
+                end_at: input.end_at.plus(1 + action_rng.gen_range(0..=2)),
                 home_score: input.home_score,
                 away_score: input.away_score,
                 ..Default::default()
@@ -653,7 +653,7 @@ fn execute_shot(
                 situation: ActionSituation::BallInBackcourt,
                 description,
                 start_at: input.end_at,
-                end_at: input.end_at.plus(12 + action_rng.random_range(0..=6)),
+                end_at: input.end_at.plus(12 + action_rng.gen_range(0..=6)),
                 ..Default::default()
             }
         }
@@ -892,8 +892,10 @@ mod tests {
         let away_team_in_game = generate_team_in_game(shoot_skill, block_skill);
         let game = &Game::test(home_team_in_game, away_team_in_game);
 
-        let action_rng = &mut ChaCha8Rng::from_rng(&mut rand::rng());
-        let description_rng = &mut ChaCha8Rng::from_rng(&mut rand::rng());
+        let action_rng = &mut ChaCha8Rng::from_rng(&mut rand::thread_rng())
+            .expect("thread RNG should seed ChaCha8Rng");
+        let description_rng = &mut ChaCha8Rng::from_rng(&mut rand::thread_rng())
+            .expect("thread RNG should seed ChaCha8Rng");
 
         for situation in [
             ActionSituation::CloseShot,

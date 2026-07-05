@@ -162,7 +162,8 @@ impl App {
             .next()
             .expect("There should be at elast one planet");
         app.world.own_team_id = app.world.generate_random_team(
-            &mut ChaCha8Rng::from_rng(&mut rand::rng()),
+            &mut ChaCha8Rng::from_rng(&mut rand::thread_rng())
+                .expect("thread RNG should seed ChaCha8Rng"),
             home_planet_id,
             "own team".into(),
             "ship_name".into(),

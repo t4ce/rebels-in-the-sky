@@ -17,12 +17,12 @@ use std::time::{Duration, Instant};
 
 const MAX_DRAW_FPS: u8 = 40;
 
-pub trait WriterProxy: io::Write + std::fmt::Debug + Sized {
-    fn send(&mut self) -> impl std::future::Future<Output = std::io::Result<usize>> + Send {
+pub trait WriterProxy: io::Write + core::fmt::Debug + Sized {
+    fn send(&mut self) -> impl core::future::Future<Output = std::io::Result<usize>> + Send {
         async { Ok(0) }
     }
 
-    fn close(&mut self) -> impl std::future::Future<Output = ()> {
+    fn close(&mut self) -> impl core::future::Future<Output = ()> {
         async {
             let _ = crossterm::execute!(
                 self,
@@ -36,7 +36,7 @@ pub trait WriterProxy: io::Write + std::fmt::Debug + Sized {
 }
 
 impl WriterProxy for io::Stdout {
-    fn close(&mut self) -> impl std::future::Future<Output = ()> {
+    fn close(&mut self) -> impl core::future::Future<Output = ()> {
         async {
             let _ = terminal::disable_raw_mode();
             let _ = crossterm::execute!(
@@ -47,17 +47,6 @@ impl WriterProxy for io::Stdout {
                 Show
             );
         }
-    }
-}
-
-#[cfg(feature = "ssh")]
-impl WriterProxy for frittura_ssh_core::SshWriterProxy {
-    async fn send(&mut self) -> std::io::Result<usize> {
-        frittura_ssh_core::SshWriterProxy::send(self).await
-    }
-
-    async fn close(&mut self) {
-        self.send_and_close().await;
     }
 }
 
@@ -86,8 +75,6 @@ pub enum TerminalEvent {
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum TuiType {
     Local,
-    #[cfg(feature = "ssh")]
-    Ssh,
     Dummy,
 }
 
@@ -112,35 +99,6 @@ impl Tui<io::Stdout> {
             last_draw: Instant::now(),
             min_duration_between_draws: Duration::from_secs_f32(1.0 / MAX_DRAW_FPS as f32),
         };
-        tui.init()?;
-        Ok(tui)
-    }
-}
-
-#[cfg(feature = "ssh")]
-impl<W> Tui<W>
-where
-    W: WriterProxy,
-{
-    pub fn new_ssh(writer: W) -> AppResult<Self> {
-        let backend = CrosstermBackend::new(writer);
-        let opts = TerminalOptions {
-            viewport: Viewport::Fixed(Rect {
-                x: 0,
-                y: 0,
-                width: UI_SCREEN_SIZE.0,
-                height: UI_SCREEN_SIZE.1,
-            }),
-        };
-
-        let terminal = Terminal::with_options(backend, opts)?;
-        let mut tui = Self {
-            tui_type: TuiType::Ssh,
-            terminal,
-            last_draw: Instant::now(),
-            min_duration_between_draws: Duration::from_secs_f32(1.0 / MAX_DRAW_FPS as f32),
-        };
-
         tui.init()?;
         Ok(tui)
     }
@@ -236,11 +194,6 @@ where
                     audio_player,
                 )
             })?;
-
-            #[cfg(feature = "ssh")]
-            if self.tui_type == TuiType::Ssh {
-                self.terminal.backend_mut().writer_mut().send().await?;
-            }
 
             self.last_draw = Instant::now();
         }

@@ -13,7 +13,7 @@ use crate::{
 use anyhow::anyhow;
 use chrono::{prelude::DateTime, Datelike, Local, Timelike};
 use itertools::Itertools;
-use std::collections::HashMap;
+use alloc::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 // A Tick represents a unit of time in the game world.
@@ -299,7 +299,7 @@ mod tests {
         core::{resources::Resource, DAYS},
         types::{SystemTimeTick, Tick, SECONDS},
     };
-    use rand::{RngExt, SeedableRng};
+    use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha8Rng;
     use std::time::Instant;
 
@@ -361,10 +361,10 @@ mod tests {
 
     #[test]
     fn test_random_generation_times() -> AppResult<()> {
-        let rng = &mut rand::rng();
+        let rng = &mut rand::thread_rng();
         let start = Instant::now();
         for _ in 0..1_000_000 {
-            let _: f32 = rng.random();
+            let _: f32 = rng.gen();
         }
 
         println!(
@@ -372,10 +372,11 @@ mod tests {
             start.elapsed().as_micros()
         );
 
-        let chacha_rng = &mut ChaCha8Rng::from_rng(&mut rand::rng());
+        let chacha_rng = &mut ChaCha8Rng::from_rng(&mut rand::thread_rng())
+            .expect("thread RNG should seed ChaCha8Rng");
         let start = Instant::now();
         for _ in 0..1_000_000 {
-            let _: f32 = chacha_rng.random();
+            let _: f32 = chacha_rng.gen();
         }
 
         println!(

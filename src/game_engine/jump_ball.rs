@@ -7,7 +7,7 @@ use crate::{
     core::{player::Player, skill::GameSkill},
     game_engine::constants::ADV_NEUTRAL_LIMIT,
 };
-use rand::RngExt;
+use rand::Rng;
 use rand_chacha::ChaCha8Rng;
 
 pub(crate) fn execute(
@@ -34,7 +34,7 @@ pub(crate) fn execute(
     let home_result = home_jumper.roll(action_rng, None) + jump_ball(home_jumper);
     let away_result = away_jumper.roll(action_rng, None) + jump_ball(away_jumper);
 
-    let timer_increase = 6 + action_rng.random_range(0..=7);
+    let timer_increase = 6 + action_rng.gen_range(0..=7);
 
     let result = match home_result  - away_result  {
             x if x > ADV_NEUTRAL_LIMIT => {
@@ -68,7 +68,7 @@ pub(crate) fn execute(
                 ..Default::default()
             },
             _ => {
-                let r = action_rng.random_bool(0.5);
+                let r = action_rng.gen_bool(0.5);
                 let ball_team = if r {
                     &game.home_team_in_game.name
                 } else {

@@ -18,7 +18,7 @@ use anyhow::anyhow;
 use itertools::Itertools;
 
 use libp2p::PeerId;
-use rand::RngExt;
+use rand::Rng;
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
@@ -542,7 +542,7 @@ impl EnginePlayer for Player {
 
     fn roll(&self, rng: &mut ChaCha8Rng, position: Option<GamePosition>) -> i16 {
         let base = rng
-            .random_range(MIN_SKILL as i16..=NUMBER_OF_ROLLS as i16 * MAX_SKILL as i16)
+            .gen_range(MIN_SKILL as i16..=NUMBER_OF_ROLLS as i16 * MAX_SKILL as i16)
             .max(self.min_roll())
             .min(self.max_roll());
 
@@ -613,7 +613,8 @@ fn test_roll() {
             assert!(player.min_roll() <= roll);
         }
     }
-    let rng = &mut ChaCha8Rng::from_rng(&mut rand::rng());
+    let rng = &mut ChaCha8Rng::from_rng(&mut rand::thread_rng())
+        .expect("thread RNG should seed ChaCha8Rng");
     let mut player = Player::default().randomize(Some(rng));
 
     print_player_rolls(&player, rng);
@@ -637,8 +638,8 @@ fn test_roll() {
     print_player_rolls(&player, rng);
 
     for _ in 0..10 {
-        player.tiredness = rng.random_range(MIN_SKILL..=MAX_SKILL);
-        player.morale = rng.random_range(MIN_SKILL..=MAX_SKILL);
+        player.tiredness = rng.gen_range(MIN_SKILL..=MAX_SKILL);
+        player.morale = rng.gen_range(MIN_SKILL..=MAX_SKILL);
         print_player_rolls(&player, rng);
     }
 }

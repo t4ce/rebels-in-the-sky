@@ -11,10 +11,10 @@ use glam::{I16Vec2, Vec2};
 use image::imageops::{rotate180, rotate270, rotate90};
 use image::{Pixel, Rgba, RgbaImage};
 use rand::seq::IteratorRandom;
-use rand::{RngExt, SeedableRng};
+use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use serde_repr::{Deserialize_repr, Serialize_repr};
-use std::collections::HashMap;
+use alloc::collections::HashMap;
 use std::sync::LazyLock;
 use strum::{Display, EnumIter, IntoEnumIterator};
 
@@ -33,7 +33,10 @@ static ASTEROID_IMAGE_DATA: LazyLock<HashMap<AsteroidData, ZippedImageHitbox>> =
                 let mut hit_boxes = vec![];
 
                 let path = if size == AsteroidSize::Planet {
-                    format!("asteroids/asteroid{}.png", rand::rng().random_range(0..30))
+                    format!(
+                        "asteroids/asteroid{}.png",
+                        rand::thread_rng().gen_range(0..30)
+                    )
                 } else {
                     format!(
                         "space_adventure/asteroid_{}{}.png",
@@ -261,7 +264,8 @@ impl GameEntity for AsteroidEntity {
                     || self.position.y < 0.0
                     || self.position.y > MAX_ENTITY_POSITION.y as f32);
 
-                let rng = &mut ChaCha8Rng::from_rng(&mut rand::rng());
+                let rng = &mut ChaCha8Rng::from_rng(&mut rand::thread_rng())
+                    .expect("thread RNG should seed ChaCha8Rng");
                 let mut callbacks = vec![];
                 let position = self.position;
 
@@ -269,12 +273,12 @@ impl GameEntity for AsteroidEntity {
                     AsteroidSize::Planet => {}
                     AsteroidSize::Huge => {
                         for _ in 0..3 {
-                            if rng.random_bool(0.95) {
+                            if rng.gen_bool(0.95) {
                                 callbacks.push(SpaceCallback::GenerateAsteroid {
                                     position,
                                     velocity: Vec2::new(
-                                        rng.random_range(-4.5..4.5),
-                                        rng.random_range(-4.5..4.5),
+                                        rng.gen_range(-4.5..4.5),
+                                        rng.gen_range(-4.5..4.5),
                                     ),
                                     size: AsteroidSize::Big,
                                 });
@@ -282,12 +286,12 @@ impl GameEntity for AsteroidEntity {
                         }
 
                         for _ in 0..4 {
-                            if rng.random_bool(0.75) {
+                            if rng.gen_bool(0.75) {
                                 callbacks.push(SpaceCallback::GenerateAsteroid {
                                     position,
                                     velocity: Vec2::new(
-                                        rng.random_range(-5.5..5.5),
-                                        rng.random_range(-5.5..5.5),
+                                        rng.gen_range(-5.5..5.5),
+                                        rng.gen_range(-5.5..5.5),
                                     ),
                                     size: AsteroidSize::Small,
                                 });
@@ -295,44 +299,43 @@ impl GameEntity for AsteroidEntity {
                         }
 
                         for _ in 0..8 {
-                            if rng.random_bool(0.85) {
+                            if rng.gen_bool(0.85) {
                                 callbacks.push(SpaceCallback::GenerateParticle {
                                     position,
                                     velocity: Vec2::new(
-                                        rng.random_range(-3.5..3.5),
-                                        rng.random_range(-3.5..3.5),
+                                        rng.gen_range(-3.5..3.5),
+                                        rng.gen_range(-3.5..3.5),
                                     ),
                                     color: Rgba([
-                                        55 + rng.random_range(0..25),
-                                        55 + rng.random_range(0..25),
-                                        55 + rng.random_range(0..25),
+                                        55 + rng.gen_range(0..25),
+                                        55 + rng.gen_range(0..25),
+                                        55 + rng.gen_range(0..25),
                                         255,
                                     ]),
                                     particle_state: EntityState::Decaying {
-                                        lifetime: 2.0 + rng.random_range(0.0..1.5),
+                                        lifetime: 2.0 + rng.gen_range(0.0..1.5),
                                     },
-                                    layer: rng.random_range(0..=2),
+                                    layer: rng.gen_range(0..=2),
                                 });
                             }
-                            if should_emit_fragments && rng.random_bool(0.15) {
+                            if should_emit_fragments && rng.gen_bool(0.15) {
                                 callbacks.push(SpaceCallback::GenerateFragment {
                                     position,
                                     velocity: Vec2::new(
-                                        rng.random_range(-3.5..3.5),
-                                        rng.random_range(-3.5..3.5),
+                                        rng.gen_range(-3.5..3.5),
+                                        rng.gen_range(-3.5..3.5),
                                     ),
                                     resource: Resource::SCRAPS,
                                     amount: 1,
                                 });
                             }
-                            if should_emit_fragments
-                                && rng.random_bool(self.gold_fragment_probability)
+                            if should_emit_fragments && rng.gen_bool(self.gold_fragment_probability)
                             {
                                 callbacks.push(SpaceCallback::GenerateFragment {
                                     position,
                                     velocity: Vec2::new(
-                                        rng.random_range(-7.5..7.5),
-                                        rng.random_range(-7.5..7.5),
+                                        rng.gen_range(-7.5..7.5),
+                                        rng.gen_range(-7.5..7.5),
                                     ),
                                     resource: Resource::GOLD,
                                     amount: 1,
@@ -342,12 +345,12 @@ impl GameEntity for AsteroidEntity {
                     }
                     AsteroidSize::Big => {
                         for _ in 0..3 {
-                            if rng.random_bool(0.85) {
+                            if rng.gen_bool(0.85) {
                                 callbacks.push(SpaceCallback::GenerateAsteroid {
                                     position,
                                     velocity: Vec2::new(
-                                        rng.random_range(-4.5..4.5),
-                                        rng.random_range(-4.5..4.5),
+                                        rng.gen_range(-4.5..4.5),
+                                        rng.gen_range(-4.5..4.5),
                                     ),
                                     size: AsteroidSize::Small,
                                 });
@@ -355,31 +358,31 @@ impl GameEntity for AsteroidEntity {
                         }
 
                         for _ in 0..6 {
-                            if rng.random_bool(0.75) {
+                            if rng.gen_bool(0.75) {
                                 callbacks.push(SpaceCallback::GenerateParticle {
                                     position,
                                     velocity: Vec2::new(
-                                        rng.random_range(-3.5..3.5),
-                                        rng.random_range(-3.5..3.5),
+                                        rng.gen_range(-3.5..3.5),
+                                        rng.gen_range(-3.5..3.5),
                                     ),
                                     color: Rgba([
-                                        55 + rng.random_range(0..25),
-                                        55 + rng.random_range(0..25),
-                                        55 + rng.random_range(0..25),
+                                        55 + rng.gen_range(0..25),
+                                        55 + rng.gen_range(0..25),
+                                        55 + rng.gen_range(0..25),
                                         255,
                                     ]),
                                     particle_state: EntityState::Decaying {
-                                        lifetime: 2.0 + rng.random_range(0.0..1.5),
+                                        lifetime: 2.0 + rng.gen_range(0.0..1.5),
                                     },
-                                    layer: rng.random_range(0..=2),
+                                    layer: rng.gen_range(0..=2),
                                 });
                             }
-                            if should_emit_fragments && rng.random_bool(0.65) {
+                            if should_emit_fragments && rng.gen_bool(0.65) {
                                 callbacks.push(SpaceCallback::GenerateFragment {
                                     position,
                                     velocity: Vec2::new(
-                                        rng.random_range(-3.5..3.5),
-                                        rng.random_range(-3.5..3.5),
+                                        rng.gen_range(-3.5..3.5),
+                                        rng.gen_range(-3.5..3.5),
                                     ),
                                     resource: Resource::SCRAPS,
                                     amount: 1,
@@ -389,31 +392,31 @@ impl GameEntity for AsteroidEntity {
                     }
                     AsteroidSize::Small => {
                         for _ in 0..4 {
-                            if rng.random_bool(0.35) {
+                            if rng.gen_bool(0.35) {
                                 callbacks.push(SpaceCallback::GenerateParticle {
                                     position,
                                     velocity: Vec2::new(
-                                        rng.random_range(-3.5..3.5),
-                                        rng.random_range(-3.5..3.5),
+                                        rng.gen_range(-3.5..3.5),
+                                        rng.gen_range(-3.5..3.5),
                                     ),
                                     color: Rgba([
-                                        55 + rng.random_range(0..25),
-                                        55 + rng.random_range(0..25),
-                                        55 + rng.random_range(0..25),
+                                        55 + rng.gen_range(0..25),
+                                        55 + rng.gen_range(0..25),
+                                        55 + rng.gen_range(0..25),
                                         255,
                                     ]),
                                     particle_state: EntityState::Decaying {
-                                        lifetime: 2.0 + rng.random_range(0.0..1.5),
+                                        lifetime: 2.0 + rng.gen_range(0.0..1.5),
                                     },
-                                    layer: rng.random_range(0..=2),
+                                    layer: rng.gen_range(0..=2),
                                 });
                             }
-                            if should_emit_fragments && rng.random_bool(0.75) {
+                            if should_emit_fragments && rng.gen_bool(0.75) {
                                 callbacks.push(SpaceCallback::GenerateFragment {
                                     position,
                                     velocity: Vec2::new(
-                                        rng.random_range(-3.5..3.5),
-                                        rng.random_range(-3.5..3.5),
+                                        rng.gen_range(-3.5..3.5),
+                                        rng.gen_range(-3.5..3.5),
                                     ),
                                     resource: Resource::SCRAPS,
                                     amount: 1,
@@ -445,17 +448,18 @@ impl AsteroidEntity {
         size: AsteroidSize,
         gold_fragment_probability: f64,
     ) -> Entity {
-        let rng = &mut ChaCha8Rng::from_rng(&mut rand::rng());
+        let rng = &mut ChaCha8Rng::from_rng(&mut rand::thread_rng())
+            .expect("thread RNG should seed ChaCha8Rng");
 
         let rotation_speed = if size == AsteroidSize::Planet {
             0.0
         } else {
-            rng.random_range(-0.75..0.75) / (1 + size as usize) as f32
+            rng.gen_range(-0.75..0.75) / (1 + size as usize) as f32
         };
 
         Entity::Asteroid(Self {
             id: 0,
-            orientation: rng.random_range(0.0..MAX_ROTATION as f32),
+            orientation: rng.gen_range(0.0..MAX_ROTATION as f32),
             rotation_speed,
             size,
             durability: size.durability(),
@@ -467,40 +471,41 @@ impl AsteroidEntity {
     }
 
     pub fn new_at_screen_edge(gold_fragment_probability: f64) -> Entity {
-        let rng = &mut ChaCha8Rng::from_rng(&mut rand::rng());
+        let rng = &mut ChaCha8Rng::from_rng(&mut rand::thread_rng())
+            .expect("thread RNG should seed ChaCha8Rng");
 
         let &size = [AsteroidSize::Small, AsteroidSize::Big, AsteroidSize::Huge]
             .iter()
-            .choose_stable(rng)
+            .choose(rng)
             .expect("There should be at least an asteroid size");
 
-        let (position, velocity) = match rng.random_range(0..3) {
+        let (position, velocity) = match rng.gen_range(0..3) {
             // Right Edge
             0 => {
                 let x = MAX_ENTITY_POSITION.x as f32;
-                let y = rng.random_range(
+                let y = rng.gen_range(
                     0.15 * MAX_ENTITY_POSITION.y as f32..0.85 * MAX_ENTITY_POSITION.y as f32,
                 );
-                let vx = rng.random_range(-12.5..-0.5);
-                let vy = rng.random_range(-4.5..4.5);
+                let vx = rng.gen_range(-12.5..-0.5);
+                let vy = rng.gen_range(-4.5..4.5);
 
                 (Vec2::new(x, y), Vec2::new(vx, vy))
             }
             //Top edge
             1 => {
-                let x = rng.random_range(0.45..0.85) * MAX_ENTITY_POSITION.x as f32;
+                let x = rng.gen_range(0.45..0.85) * MAX_ENTITY_POSITION.x as f32;
                 let y = 0.0;
-                let vx = rng.random_range(-4.5..4.5);
-                let vy = rng.random_range(0.5..12.5);
+                let vx = rng.gen_range(-4.5..4.5);
+                let vy = rng.gen_range(0.5..12.5);
 
                 (Vec2::new(x, y), Vec2::new(vx, vy))
             }
             // Bottom edge
             2 => {
-                let x = rng.random_range(0.45..0.85) * MAX_ENTITY_POSITION.x as f32;
+                let x = rng.gen_range(0.45..0.85) * MAX_ENTITY_POSITION.x as f32;
                 let y = MAX_ENTITY_POSITION.y as f32;
-                let vx = rng.random_range(-4.5..4.5);
-                let vy = rng.random_range(-12.5..-0.5);
+                let vx = rng.gen_range(-4.5..4.5);
+                let vy = rng.gen_range(-12.5..-0.5);
 
                 (Vec2::new(x, y), Vec2::new(vx, vy))
             }
@@ -512,12 +517,13 @@ impl AsteroidEntity {
     }
 
     pub fn planet() -> Entity {
-        let rng = &mut ChaCha8Rng::from_rng(&mut rand::rng());
+        let rng = &mut ChaCha8Rng::from_rng(&mut rand::thread_rng())
+            .expect("thread RNG should seed ChaCha8Rng");
 
         let x = MAX_ENTITY_POSITION.x as f32;
-        let y = rng.random_range(0.25..0.45) * MAX_ENTITY_POSITION.y as f32;
-        let vx = rng.random_range(-4.0..-3.0);
-        let vy = rng.random_range(-0.25..0.25);
+        let y = rng.gen_range(0.25..0.45) * MAX_ENTITY_POSITION.y as f32;
+        let vx = rng.gen_range(-4.0..-3.0);
+        let vy = rng.gen_range(-0.25..0.25);
 
         Self::new_entity(
             Vec2::new(x, y),

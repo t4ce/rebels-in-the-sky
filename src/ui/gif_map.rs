@@ -21,7 +21,7 @@ use anyhow::anyhow;
 use image::{imageops::resize, GenericImageView, Rgba, RgbaImage};
 use imageproc::geometric_transformations::{rotate_about_center, Interpolation};
 use itertools::Itertools;
-use std::collections::HashMap;
+use alloc::collections::HashMap;
 use std::sync::LazyLock;
 
 const MAX_GIF_WIDTH: u32 = 160;
@@ -489,7 +489,7 @@ impl GifMap {
                     img,
                     std::f32::consts::PI / 2.0,
                     Interpolation::Nearest,
-                    imageproc::geometric_transformations::Border::Constant(Rgba([255, 0, 0, 0])),
+                    Rgba([255, 0, 0, 0]),
                 )
             })
             .collect::<Gif>();
@@ -550,7 +550,7 @@ impl GifMap {
                     img,
                     std::f32::consts::PI / 2.0,
                     Interpolation::Nearest,
-                    imageproc::geometric_transformations::Border::Constant(Rgba([255, 0, 0, 0])),
+                    Rgba([255, 0, 0, 0]),
                 )
             })
             .collect::<Gif>();

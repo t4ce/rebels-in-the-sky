@@ -31,7 +31,7 @@ use glam::Vec2;
 use image::{imageops::crop_imm, Rgb};
 use image::{Rgba, RgbaImage};
 use itertools::Itertools;
-use rand::{seq::IteratorRandom, RngExt, SeedableRng};
+use rand::{seq::IteratorRandom, Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use std::{
     collections::HashMap,
@@ -206,7 +206,8 @@ impl SpaceAdventure {
     }
 
     fn generate_enemy_spaceship(&mut self) -> AppResult<usize> {
-        let rng = &mut ChaCha8Rng::from_rng(&mut rand::rng());
+        let rng = &mut ChaCha8Rng::from_rng(&mut rand::thread_rng())
+            .expect("thread RNG should seed ChaCha8Rng");
 
         let mut color_map = ColorMap::random(rng);
         color_map.blue = Rgb([
@@ -216,7 +217,7 @@ impl SpaceAdventure {
         ]);
         let spaceship = SpaceshipPrefab::iter()
             .filter(|s| s.spaceship().has_shooters())
-            .choose(&mut rand::rng())
+            .choose(&mut rand::thread_rng())
             .ok_or_else(|| anyhow!("There should be one spaceship available"))?
             .spaceship()
             .with_name("Baddy")
@@ -324,7 +325,8 @@ impl SpaceAdventure {
 
         Ok(Self {
             id: 0,
-            rng: ChaCha8Rng::from_rng(&mut rand::rng()),
+            rng: ChaCha8Rng::from_rng(&mut rand::thread_rng())
+                .expect("thread RNG should seed ChaCha8Rng"),
             state: SpaceAdventureState::Starting {
                 time: Instant::now(),
             },
@@ -506,7 +508,7 @@ impl SpaceAdventure {
         // Generate asteroids
         let difficulty_level = Self::get_difficulty_level(time);
         if self.entity_count() < difficulty_level.min(MAX_ENTITY_COUNT_FOR_GENERATION)
-            && self.rng.random_bool(ASTEROID_GENERATION_PROBABILITY)
+            && self.rng.gen_bool(ASTEROID_GENERATION_PROBABILITY)
         {
             let asteroid = AsteroidEntity::new_at_screen_edge(self.gold_fragment_probability);
             self.insert_entity(asteroid);

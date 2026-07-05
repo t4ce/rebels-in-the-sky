@@ -6,7 +6,7 @@ use super::{
 use crate::types::AppResult;
 use glam::{I16Vec2, Vec2};
 use image::{Pixel, Rgba};
-use rand::{RngExt, SeedableRng};
+use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use std::{
     collections::{
@@ -266,22 +266,23 @@ fn get_collision_callbacks(
             get_collision_callbacks(other, one, collision_point, deltatime)?
         }
         (ColliderType::Projectile { .. }, ColliderType::Asteroid) => {
-            let rng = &mut ChaCha8Rng::from_rng(&mut rand::rng());
-            let particle_velocity = one.velocity().as_vec2() * rng.random_range(0.1..=0.15)
-                + Vec2::Y * rng.random_range(-1.0..=1.0) * 12.0;
+            let rng = &mut ChaCha8Rng::from_rng(&mut rand::thread_rng())
+                .expect("thread RNG should seed ChaCha8Rng");
+            let particle_velocity = one.velocity().as_vec2() * rng.gen_range(0.1..=0.15)
+                + Vec2::Y * rng.gen_range(-1.0..=1.0) * 12.0;
             vec![
                 SpaceCallback::DestroyEntity { id: one.id() },
                 SpaceCallback::GenerateParticle {
                     position: collision_point.as_vec2(),
                     velocity: particle_velocity,
                     color: Rgba([
-                        55 + rng.random_range(0..25),
-                        55 + rng.random_range(0..25),
-                        55 + rng.random_range(0..25),
+                        55 + rng.gen_range(0..25),
+                        55 + rng.gen_range(0..25),
+                        55 + rng.gen_range(0..25),
                         255,
                     ]),
                     particle_state: EntityState::Decaying {
-                        lifetime: 1.0 + rng.random_range(0.0..1.5),
+                        lifetime: 1.0 + rng.gen_range(0.0..1.5),
                     },
                     layer: 2,
                 },
@@ -296,16 +297,17 @@ fn get_collision_callbacks(
         }
         (ColliderType::Projectile { shot_by, .. }, ColliderType::Spaceship) => {
             if shot_by != other.id() {
-                let rng = &mut ChaCha8Rng::from_rng(&mut rand::rng());
+                let rng = &mut ChaCha8Rng::from_rng(&mut rand::thread_rng())
+                    .expect("thread RNG should seed ChaCha8Rng");
                 vec![
                     SpaceCallback::DestroyEntity { id: one.id() },
                     SpaceCallback::GenerateParticle {
                         position: collision_point.as_vec2(),
-                        velocity: one.velocity().as_vec2() * rng.random_range(-0.1..=0.01)
-                            + Vec2::Y * rng.random_range(-1.0..=1.0) * 8.0,
-                        color: Rgba([210 + rng.random_range(0..=45), 55, 75, 205]),
+                        velocity: one.velocity().as_vec2() * rng.gen_range(-0.1..=0.01)
+                            + Vec2::Y * rng.gen_range(-1.0..=1.0) * 8.0,
+                        color: Rgba([210 + rng.gen_range(0..=45), 55, 75, 205]),
                         particle_state: EntityState::Decaying {
-                            lifetime: 1.0 + rng.random_range(0.0..1.5),
+                            lifetime: 1.0 + rng.gen_range(0.0..1.5),
                         },
                         layer: 2,
                     },
@@ -332,16 +334,17 @@ fn get_collision_callbacks(
             if matches!(filter_shield_id, Some(id) if id == other.id()) || !shield.is_active() {
                 vec![]
             } else {
-                let rng = &mut ChaCha8Rng::from_rng(&mut rand::rng());
+                let rng = &mut ChaCha8Rng::from_rng(&mut rand::thread_rng())
+                    .expect("thread RNG should seed ChaCha8Rng");
                 vec![
                     SpaceCallback::DestroyEntity { id: one.id() },
                     SpaceCallback::GenerateParticle {
                         position: collision_point.as_vec2(),
-                        velocity: one.velocity().as_vec2() * rng.random_range(-0.15..=-0.05)
-                            + Vec2::Y * rng.random_range(-1.0..=1.0) * 4.0,
-                        color: Rgba([210 + rng.random_range(0..=45), 125, 25, 205]),
+                        velocity: one.velocity().as_vec2() * rng.gen_range(-0.15..=-0.05)
+                            + Vec2::Y * rng.gen_range(-1.0..=1.0) * 4.0,
+                        color: Rgba([210 + rng.gen_range(0..=45), 125, 25, 205]),
                         particle_state: EntityState::Decaying {
-                            lifetime: 1.0 + rng.random_range(0.0..1.5),
+                            lifetime: 1.0 + rng.gen_range(0.0..1.5),
                         },
                         layer: 2,
                     },

@@ -5,7 +5,7 @@ use super::{
     game::Game,
     timer::Period,
 };
-use rand::RngExt;
+use rand::Rng;
 use rand_chacha::ChaCha8Rng;
 
 pub(crate) fn execute(
@@ -14,7 +14,7 @@ pub(crate) fn execute(
     action_rng: &mut ChaCha8Rng,
     _description_rng: &mut ChaCha8Rng,
 ) -> ActionOutput {
-    let timer_increase = 6 + action_rng.random_range(0..=6);
+    let timer_increase = 6 + action_rng.gen_range(0..=6);
 
     let possession = match input.end_at.period() {
         // Q2: Assign possession to team that did not win the jump ball

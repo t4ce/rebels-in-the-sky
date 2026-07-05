@@ -18,10 +18,10 @@ use crate::{
     types::*,
 };
 use itertools::Itertools;
-use rand::{seq::IndexedRandom, RngExt, SeedableRng};
+use rand::{seq::SliceRandom, Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
+use core::fmt::Debug;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct GameSummary {
@@ -232,7 +232,7 @@ impl Game {
         let attendance = (BASE_ATTENDANCE
             + (total_reputation.value() as u32).pow(2) * planet_total_population)
             as f32
-            * rng.random_range(0.75..=1.25)
+            * rng.gen_range(0.75..=1.25)
             * (1.0 + bonus_attendance);
         game.attendance = attendance as u32;
         let mut default_output = ActionOutput::default();
@@ -443,7 +443,7 @@ impl Game {
                     * (self.home_team_in_game.tactic.brawl_probability_modifier()
                         + self.away_team_in_game.tactic.brawl_probability_modifier())
                     + drunkenness_modifier;
-                if action_rng.random_bool(brawl_probability.clamp(0.0, 1.0)) {
+                if action_rng.gen_bool(brawl_probability.clamp(0.0, 1.0)) {
                     Action::Brawl
                 } else {
                     match self.possession {
@@ -551,7 +551,7 @@ impl Game {
                 .defending_team()
                 .tactic
                 .fastbreak_probability_modifier();
-        if with_steal && action_rng.random_bool(fastbreak_probability.clamp(0.0, 1.0)) {
+        if with_steal && action_rng.gen_bool(fastbreak_probability.clamp(0.0, 1.0)) {
             ActionSituation::Fastbreak
         } else {
             ActionSituation::Turnover
@@ -615,7 +615,7 @@ impl Game {
                 // Pirates with low morale are more likely to drink.
                 let drink_probability = ((MAX_SKILL - player.morale) / MAX_SKILL) as f64
                     * team.in_game_drinking.drink_probability_modifier();
-                if action_rng.random_bool(drink_probability.clamp(0.0, 1.0)) {
+                if action_rng.gen_bool(drink_probability.clamp(0.0, 1.0)) {
                     team.rum -= 1;
                     player_stats.rum_drunk += 1;
 
@@ -940,7 +940,7 @@ impl Game {
                     self.attacking_team().name,
                 ),
                 start_at: action_input.end_at,
-                end_at: action_input.end_at.plus(4 + action_rng.random_range(0..=3)),
+                end_at: action_input.end_at.plus(4 + action_rng.gen_range(0..=3)),
                 home_score: action_input.home_score,
                 away_score: action_input.away_score,
                 ..Default::default()

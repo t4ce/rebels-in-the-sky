@@ -4,8 +4,6 @@ use clap::{ArgAction, Parser};
 #[derive(PartialEq)]
 pub enum AppMode {
     Game,
-    #[cfg(feature = "ssh")]
-    SSHServer,
     #[cfg(feature = "relayer")]
     Relayer,
 }
@@ -29,12 +27,6 @@ pub struct AppArgs {
     #[cfg(feature = "relayer")]
     #[clap(long, short='n', action=ArgAction::SetTrue, help = "Run a network relayer")]
     relayer_mode: bool,
-    #[cfg(feature = "ssh")]
-    #[clap(long, short='j', action=ArgAction::SetTrue, help = "Run SSH server")]
-    ssh_server: bool,
-    #[cfg(feature = "ssh")]
-    #[clap(long="ssh-port", action=ArgAction::Set, help = "SSH server listen port (default 3788)")]
-    pub ssh_port: Option<u16>,
     #[clap(long, short = 's', action=ArgAction::Set, help = "Set ip of seed node")]
     pub seed_node_ip: Option<String>,
     #[clap(long, short = 'p', action=ArgAction::Set, help = "Set network port")]
@@ -52,33 +44,6 @@ pub struct AppArgs {
 }
 
 impl AppArgs {
-    #[cfg(feature = "ssh")]
-    pub fn ssh_client(
-        store_prefix: Option<String>,
-        network_port: Option<u16>,
-        auto_quit_after: Option<u64>,
-    ) -> Self {
-        Self {
-            random_seed: None,
-            disable_network: false,
-            #[cfg(feature = "audio")]
-            disable_audio: true,
-            reset_world: false,
-            generate_local_world: true,
-            disable_ui: false,
-            #[cfg(feature = "relayer")]
-            relayer_mode: false,
-            ssh_server: false,
-            ssh_port: None,
-            seed_node_ip: None,
-            network_port,
-            use_ipv6: true,
-            store_prefix,
-            store_uncompressed: false,
-            auto_quit_after,
-            reset_network_peers: false,
-        }
-    }
     pub fn test() -> Self {
         Self {
             random_seed: Some(0),
@@ -90,10 +55,6 @@ impl AppArgs {
             disable_ui: false,
             #[cfg(feature = "relayer")]
             relayer_mode: false,
-            #[cfg(feature = "ssh")]
-            ssh_server: false,
-            #[cfg(feature = "ssh")]
-            ssh_port: None,
             seed_node_ip: None,
             network_port: None,
             use_ipv6: true,
@@ -105,10 +66,6 @@ impl AppArgs {
     }
 
     pub fn app_mode(&self) -> AppMode {
-        #[cfg(feature = "ssh")]
-        if self.ssh_server {
-            return AppMode::SSHServer;
-        }
         #[cfg(feature = "relayer")]
         if self.relayer_mode {
             return AppMode::Relayer;

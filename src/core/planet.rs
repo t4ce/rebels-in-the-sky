@@ -10,14 +10,14 @@ use crate::{
 };
 use anyhow::anyhow;
 use libp2p::PeerId;
+use rand::distributions::WeightedIndex;
 use rand::prelude::Distribution;
-use rand::seq::IndexedRandom;
-use rand::{RngExt, SeedableRng};
+use rand::seq::SliceRandom;
+use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
-use rand_distr::weighted::WeightedIndex;
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
-use std::collections::HashSet;
+use alloc::collections::HashSet;
 use std::{
     collections::HashMap,
     hash::{DefaultHasher, Hash, Hasher},
@@ -200,7 +200,8 @@ impl Planet {
     }
 
     pub fn asteroid(name: String, filename: String, satellite_of: PlanetId) -> Self {
-        let rng = &mut ChaCha8Rng::from_rng(&mut rand::rng());
+        let rng = &mut ChaCha8Rng::from_rng(&mut rand::thread_rng())
+            .expect("thread RNG should seed ChaCha8Rng");
         let revolution_period: usize = [120, 180, 360]
             .choose(rng)
             .copied()
@@ -210,11 +211,11 @@ impl Planet {
 
         resources.insert(
             Resource::SCRAPS,
-            rng.random_range(MIN_SKILL + 2.5..=MAX_SKILL) as u32,
+            rng.gen_range(MIN_SKILL + 2.5..=MAX_SKILL) as u32,
         );
         resources.insert(
             Resource::GOLD,
-            rng.random_range(MIN_SKILL..=MAX_SKILL - 8.0) as u32,
+            rng.gen_range(MIN_SKILL..=MAX_SKILL - 8.0) as u32,
         );
 
         Self {
@@ -225,14 +226,14 @@ impl Planet {
             populations: HashMap::new(),
             resources,
             filename,
-            rotation_period: rng.random_range(1..24),
+            rotation_period: rng.gen_range(1..24),
             revolution_period,
-            gravity: rng.random_range(1..4),
+            gravity: rng.gen_range(1..4),
             asteroid_probability: 0.0,
             planet_type: PlanetType::Asteroid,
             satellites: Vec::new(),
             satellite_of: Some(satellite_of),
-            axis: (rng.random_range(10.0..60.0), rng.random_range(10.0..60.0)),
+            axis: (rng.gen_range(10.0..60.0), rng.gen_range(10.0..60.0)),
             team_ids: Vec::new(),
             //TODO: add option to customize asteroid radio stream
             custom_radio_stream: None,

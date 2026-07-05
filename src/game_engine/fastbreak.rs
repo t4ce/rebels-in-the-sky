@@ -4,9 +4,9 @@ use crate::core::{
     skill::GameSkill,
     GamePosition, Pronoun,
 };
-use rand::RngExt;
+use rand::Rng;
 use rand_chacha::ChaCha8Rng;
-use std::collections::HashMap;
+use alloc::collections::HashMap;
 
 pub(crate) fn execute(
     input: &ActionOutput,
@@ -26,7 +26,7 @@ pub(crate) fn execute(
     let mut attack_stats_update: GameStatsMap = HashMap::new();
     let mut defense_stats_update: GameStatsMap = HashMap::new();
 
-    let timer_increase = 3 + action_rng.random_range(0..=2);
+    let timer_increase = 3 + action_rng.gen_range(0..=2);
 
     let mut result = ActionOutput {
         possession: input.possession,

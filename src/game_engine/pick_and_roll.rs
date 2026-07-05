@@ -4,9 +4,9 @@ use crate::core::{
     skill::GameSkill,
     GamePosition, Player, MAX_SKILL,
 };
-use rand::{seq::IndexedRandom, RngExt};
+use rand::{seq::SliceRandom, Rng};
 use rand_chacha::ChaCha8Rng;
-use std::collections::HashMap;
+use alloc::collections::HashMap;
 
 pub(crate) fn execute(
     input: &ActionOutput,
@@ -29,7 +29,7 @@ pub(crate) fn execute(
                     game.attacking_team().name,
                 ),
                     start_at: input.end_at,
-                    end_at: input.end_at.plus(4 + action_rng.random_range(0..=3)),
+                    end_at: input.end_at.plus(4 + action_rng.gen_range(0..=3)),
                     home_score: input.home_score,
                     away_score: input.away_score,
                     ..Default::default()
@@ -111,7 +111,7 @@ fn playmaker_uses_the_screen(
                     game.attacking_team().name,
                 ),
                 start_at: input.end_at,
-                end_at: input.end_at.plus(4 + action_rng.random_range(0..=3)),
+                end_at: input.end_at.plus(4 + action_rng.gen_range(0..=3)),
                 home_score: input.home_score,
                 away_score: input.away_score,
                 ..Default::default()
@@ -169,7 +169,7 @@ fn playmaker_uses_the_screen(
         .filter(|p| !p.is_knocked_out())
         .count();
     let result = if num_ok_players > 1
-        && action_rng.random_bool(
+        && action_rng.gen_bool(
             ((0.5 * playmaker.mental.vision + 0.5 * playmaker.technical.passing) / MAX_SKILL)
                 as f64,
         ) {
@@ -201,14 +201,14 @@ fn playmaker_uses_the_screen(
             .expect("There should be one option")
             .clone(),
             start_at: input.end_at,
-            end_at: input.end_at.plus(1 + action_rng.random_range(0..=2)),
+            end_at: input.end_at.plus(1 + action_rng.gen_range(0..=2)),
             home_score: input.home_score,
             away_score: input.away_score,
             assist_from: Some(play_idx),
             ..Default::default()
         }
     } else {
-        let timer_increase = 3 + action_rng.random_range(0..=3);
+        let timer_increase = 3 + action_rng.gen_range(0..=3);
         match atk_result - def_result {
                 x if x >= ADV_ATTACK_LIMIT => ActionOutput {
                     possession: input.possession,
@@ -279,7 +279,7 @@ fn playmaker_uses_the_screen(
                     ..Default::default()
                 },
                 x if x > ADV_DEFENSE_LIMIT => {
-                    match action_rng.random_bool(0.5) {
+                    match action_rng.gen_bool(0.5) {
                         false => ActionOutput {
                             possession: input.possession,
                             advantage: Advantage::Defense,
@@ -360,9 +360,9 @@ fn playmaker_uses_the_screen(
                     } else {vec![]};
 
                     let end_at = if with_steal {
-                        input.end_at.plus(1 +  action_rng.random_range(0..=2))
+                        input.end_at.plus(1 +  action_rng.gen_range(0..=2))
                     } else {
-                        input.end_at.plus(4 + action_rng.random_range(0..=2))
+                        input.end_at.plus(4 + action_rng.gen_range(0..=2))
                     };
 
                     let description =  if with_steal{[
@@ -483,7 +483,7 @@ fn playmaker_passes_to_target(
             .tactic
             .defense_roll_bonus(&Action::PickAndRoll);
 
-    let timer_increase = 4 + action_rng.random_range(0..=3);
+    let timer_increase = 4 + action_rng.gen_range(0..=3);
 
     let result = match atk_result  - def_result {
             x if x >= ADV_ATTACK_LIMIT => ActionOutput {
@@ -526,7 +526,7 @@ fn playmaker_passes_to_target(
                 advantage: Advantage::Neutral,
                 attackers: vec![target_idx],
                 defenders: vec![play_idx],
-                situation: if action_rng.random_bool(((target.athletics.quickness - 0.5 * target_defender.defense.interior_defense).bound()/MAX_SKILL)as f64) {ActionSituation::CloseShot} else {ActionSituation::MediumShot},
+                situation: if action_rng.gen_bool(((target.athletics.quickness - 0.5 * target_defender.defense.interior_defense).bound()/MAX_SKILL)as f64) {ActionSituation::CloseShot} else {ActionSituation::MediumShot},
                 description:[
                     format!(
                         "After setting up the screen, {} gets the pass from {} and is now ready to shoot.",
@@ -595,7 +595,7 @@ fn playmaker_passes_to_target(
                         .expect("There should be one option")
                         .clone(),
                         start_at: input.end_at,
-                        end_at: input.end_at.plus(1 + action_rng.random_range(0..=2)),
+                        end_at: input.end_at.plus(1 + action_rng.gen_range(0..=2)),
                         home_score: input.home_score,
                         away_score: input.away_score,
                         assist_from: Some(play_idx),
@@ -661,9 +661,9 @@ fn playmaker_passes_to_target(
                 } else {vec![]};
 
                 let end_at = if with_steal {
-                    input.end_at.plus(1 +  action_rng.random_range(0..=2))
+                    input.end_at.plus(1 +  action_rng.gen_range(0..=2))
                 } else {
-                    input.end_at.plus(4 + action_rng.random_range(0..=2))
+                    input.end_at.plus(4 + action_rng.gen_range(0..=2))
                 };
 
                 let description = if with_steal{[

@@ -2,14 +2,14 @@ use super::resources::Resource;
 use super::utils::is_default;
 use crate::core::{Population, Upgrade, UpgradeableElement, DAYS, MAX_TAVERN_POPULATION, WEEKS};
 use crate::types::{PlanetId, PlayerId, ResourceMap, StorableResourceMap, Tick};
+use rand::distributions::WeightedIndex;
 use rand::prelude::Distribution;
-use rand::RngExt;
+use rand::Rng;
 use rand_chacha::ChaCha8Rng;
-use rand_distr::weighted::WeightedIndex;
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
-use std::collections::{HashMap, HashSet};
-use std::fmt::{self, Display};
+use alloc::collections::{HashMap, HashSet};
+use core::fmt::{self, Display};
 use strum::Display;
 use strum_macros::EnumIter;
 
@@ -52,7 +52,7 @@ impl Tavern {
         let mut populations = HashMap::default();
         if let Ok(distribution) = WeightedIndex::new(weights.iter().map(|(_, weight)| weight)) {
             for _ in 0..MAX_TAVERN_POPULATION {
-                if rng.random_range(0.0..1.0) < fill_chance {
+                if rng.gen_range(0.0..1.0) < fill_chance {
                     let population = weights[distribution.sample(rng)].0;
                     *populations.entry(population).or_insert(0) += 1;
                 }

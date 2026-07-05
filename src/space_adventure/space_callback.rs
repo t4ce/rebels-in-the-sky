@@ -10,7 +10,7 @@ use super::{
 };
 use glam::{I16Vec2, Vec2};
 use image::Rgba;
-use rand::{RngExt, SeedableRng};
+use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 
 #[derive(Debug, Clone, Copy)]
@@ -239,7 +239,8 @@ impl SpaceCallback {
                     }
 
                     let y_distance = (target_position.y - entity_position.y).abs();
-                    let rng = &mut ChaCha8Rng::from_rng(&mut rand::rng());
+                    let rng = &mut ChaCha8Rng::from_rng(&mut rand::thread_rng())
+                        .expect("thread RNG should seed ChaCha8Rng");
 
                     if let Ok(spaceship) = entity.as_spaceship_mut() {
                         if y_distance > 4 {
@@ -255,7 +256,7 @@ impl SpaceCallback {
                         {
                             spaceship.set_autofire(false);
                         } else if spaceship.current_charge() as f32
-                            > rng.random_range(0.25..=0.5) * spaceship.max_charge() as f32
+                            > rng.gen_range(0.25..=0.5) * spaceship.max_charge() as f32
                         {
                             spaceship.set_autofire(true);
                         }

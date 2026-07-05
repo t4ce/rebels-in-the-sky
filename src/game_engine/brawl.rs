@@ -7,9 +7,9 @@ use crate::{
     },
     game_engine::constants::ADV_NEUTRAL_LIMIT,
 };
-use rand::{seq::IndexedRandom, RngExt};
+use rand::{seq::SliceRandom, Rng};
 use rand_chacha::ChaCha8Rng;
-use std::collections::HashMap;
+use alloc::collections::HashMap;
 
 pub(crate) fn execute(
     input: &ActionOutput,
@@ -46,7 +46,7 @@ pub(crate) fn execute(
                     game.attacking_team().name,
                 ),
                 start_at: input.end_at,
-                end_at: input.end_at.plus(4 + action_rng.random_range(0..=3)),
+                end_at: input.end_at.plus(4 + action_rng.gen_range(0..=3)),
                 home_score: input.home_score,
                 away_score: input.away_score,
                 ..Default::default()
@@ -80,7 +80,7 @@ pub(crate) fn execute(
                     game.attacking_team().name,
                 ),
                 start_at: input.end_at,
-                end_at: input.end_at.plus(4 + action_rng.random_range(0..=3)),
+                end_at: input.end_at.plus(4 + action_rng.gen_range(0..=3)),
                 home_score: input.home_score,
                 away_score: input.away_score,
                 ..Default::default()
@@ -302,7 +302,7 @@ pub(crate) fn execute(
         }
     };
 
-    let timer_increase = 7 + action_rng.random_range(0..=5);
+    let timer_increase = 7 + action_rng.gen_range(0..=5);
 
     let mut result = ActionOutput {
         possession: input.possession,

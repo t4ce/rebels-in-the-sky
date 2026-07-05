@@ -13,11 +13,11 @@ use crate::{
 };
 use anyhow::anyhow;
 use itertools::Itertools;
-use rand::{seq::SliceRandom, RngExt, SeedableRng};
+use rand::{seq::SliceRandom, Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
-use std::collections::HashMap;
+use alloc::collections::HashMap;
 use strum::Display;
 
 pub type TournamentId = uuid::Uuid;
@@ -190,7 +190,7 @@ impl Tournament {
         starting_at: Tick,
     ) -> Game {
         Game::new(
-            GameId::from_u128(rng.random()),
+            GameId::from_u128(rng.gen()),
             home_team_in_game,
             away_team_in_game,
             starting_at,

@@ -30,13 +30,13 @@ use crate::{
 };
 use anyhow::anyhow;
 use rand::{
-    seq::{IndexedRandom, IteratorRandom},
-    RngExt, SeedableRng,
+    seq::{IteratorRandom, SliceRandom},
+    Rng, SeedableRng,
 };
 use rand_chacha::ChaCha8Rng;
 use ratatui::crossterm::event::{KeyCode, MouseEvent, MouseEventKind};
 use ratatui::layout::Rect;
-use std::collections::HashMap;
+use alloc::collections::HashMap;
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub enum UiCallback {
@@ -597,7 +597,10 @@ impl UiCallback {
             }
             let own_team_id = app.world.own_team_id;
             let (home_team_in_game, away_team_in_game) =
-                match ChaCha8Rng::from_rng(&mut rand::rng()).random_range(0..=1) {
+                match ChaCha8Rng::from_rng(&mut rand::thread_rng())
+                    .expect("thread RNG should seed ChaCha8Rng")
+                    .gen_range(0..=1)
+                {
                     0 => (
                         TeamInGame::from_team_id(
                             &own_team_id,
@@ -1680,7 +1683,8 @@ impl UiCallback {
                 let mut player = app.world.players.get_or_err(player_id)?.clone();
                 player.can_drink(&app.world)?;
 
-                let rng = &mut ChaCha8Rng::from_rng(&mut rand::rng());
+                let rng = &mut ChaCha8Rng::from_rng(&mut rand::thread_rng())
+                    .expect("thread RNG should seed ChaCha8Rng");
                 let got_drunk = player.drink(rng);
 
                 let mut team = app

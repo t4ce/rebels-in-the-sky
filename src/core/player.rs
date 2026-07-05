@@ -18,12 +18,13 @@ use anyhow::anyhow;
 
 use itertools::Itertools;
 use libp2p::PeerId;
+use rand::distributions::Distribution;
 use rand::{
-    seq::{IndexedRandom, IteratorRandom},
-    RngExt, SeedableRng,
+    seq::{IteratorRandom, SliceRandom},
+    Rng, SeedableRng,
 };
 use rand_chacha::ChaCha8Rng;
-use rand_distr::{num_traits::Signed, Distribution, Normal};
+use rand_distr::Normal;
 use serde::{de::Visitor, ser::SerializeStruct, Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use strum::IntoEnumIterator;
@@ -178,7 +179,7 @@ impl<'de> Deserialize<'de> for Player {
                 impl<'de> Visitor<'de> for FieldVisitor {
                     type Value = Field;
 
-                    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                    fn expecting(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {
                         formatter.write_str("field name")
                     }
 
@@ -226,7 +227,7 @@ impl<'de> Deserialize<'de> for Player {
         impl<'de> Visitor<'de> for PlayerVisitor {
             type Value = Player;
 
-            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            fn expecting(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {
                 formatter.write_str("struct Player")
             }
 
@@ -531,14 +532,15 @@ impl Player {
         let rng = if let Some(r) = rng {
             r
         } else {
-            &mut ChaCha8Rng::from_rng(&mut rand::rng())
+            &mut ChaCha8Rng::from_rng(&mut rand::thread_rng())
+                .expect("thread RNG should seed ChaCha8Rng")
         };
 
         let mut build_base_level = self.build_data.base_level;
         let position = if let Some(pos) = self.build_data.position {
             pos
         } else {
-            rng.random_range(0..NUM_GAME_POSITIONS)
+            rng.gen_range(0..NUM_GAME_POSITIONS)
         };
 
         self.info.population = self
@@ -584,13 +586,13 @@ impl Player {
             self.mental.charisma = (self.mental.charisma + 0.75).bound();
         }
 
-        if self.athletics.strength > 15.0 && rng.random_bool(TRAIT_PROBABILITY) {
+        if self.athletics.strength > 15.0 && rng.gen_bool(TRAIT_PROBABILITY) {
             self.special_trait = Some(Trait::Killer);
-        } else if self.mental.charisma > 15.0 && rng.random_bool(TRAIT_PROBABILITY) {
+        } else if self.mental.charisma > 15.0 && rng.gen_bool(TRAIT_PROBABILITY) {
             self.special_trait = Some(Trait::Showpirate);
-        } else if self.mental.intuition > 10.0 && rng.random_bool(TRAIT_PROBABILITY) {
+        } else if self.mental.intuition > 10.0 && rng.gen_bool(TRAIT_PROBABILITY) {
             self.special_trait = Some(Trait::Spugna);
-        } else if self.athletics.stamina > 15.0 && rng.random_bool(TRAIT_PROBABILITY) {
+        } else if self.athletics.stamina > 15.0 && rng.gen_bool(TRAIT_PROBABILITY) {
             self.special_trait = Some(Trait::Relentless);
         }
 
@@ -665,7 +667,8 @@ impl Player {
         let rng = if let Some(r) = rng {
             r
         } else {
-            &mut ChaCha8Rng::from_rng(&mut rand::rng())
+            &mut ChaCha8Rng::from_rng(&mut rand::thread_rng())
+                .expect("thread RNG should seed ChaCha8Rng")
         };
         let positions_by_skill_fitness = (0..NUM_GAME_POSITIONS)
             .sorted_by(|&a, &b| {
@@ -806,7 +809,7 @@ impl Player {
         // mitigated by stamina: high-stamina players hold their liquor.
         let drunk_probability = BASE_DRUNK_PROBABILITY
             * ((self.drunkenness / MAX_SKILL) / (1.0 + self.athletics.stamina / MAX_SKILL)) as f64;
-        if rng.random_bool(drunk_probability) {
+        if rng.gen_bool(drunk_probability) {
             // Wasted: tiredness is set directly rather than through add_tiredness,
             // since morale must be unaffected and trait caps must not prevent it.
             self.tiredness = MAX_SKILL;
@@ -1091,7 +1094,7 @@ impl Player {
     }
 
     pub fn modify_skill(&mut self, idx: usize, mut value: f32) {
-        if value.is_positive() {
+        if value.is_sign_positive() {
             // Quickness cannot improve beyond WOODEN_LEG_MAX_QUICKNESS if player has a wooden leg
             if self.has_wooden_leg()
                 && idx == 0
@@ -1298,7 +1301,7 @@ impl InfoStats {
                 .choose(rng)
                 .expect("No available name")
                 .to_string(),
-            Pronoun::They => match rng.random_bool(0.5) {
+            Pronoun::They => match rng.gen_bool(0.5) {
                 true => p_data
                     .first_names_he
                     .choose(rng)
@@ -1317,11 +1320,11 @@ impl InfoStats {
             .expect("No available name")
             .to_string();
         self.age = self.population.min_age()
-            + rng.random_range(0.0..0.55) * (self.population.max_age() - self.population.min_age());
+            + rng.gen_range(0.0..0.55) * (self.population.max_age() - self.population.min_age());
         self.height = Normal::new(192.0 + 3.5 * position as f32, 5.0)
             .unwrap()
             .sample(rng);
-        let bmi = rng.random_range(12..22) as f32 + self.height / 20.0;
+        let bmi = rng.gen_range(12..22) as f32 + self.height / 20.0;
         self.weight = bmi * self.height * self.height / 10000.0;
     }
 }

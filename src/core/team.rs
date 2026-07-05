@@ -129,7 +129,8 @@ impl Team {
         let rng = if let Some(r) = rng {
             r
         } else {
-            &mut ChaCha8Rng::from_rng(&mut rand::rng())
+            &mut ChaCha8Rng::from_rng(&mut rand::thread_rng())
+                .expect("thread RNG should seed ChaCha8Rng")
         };
         let jersey = Jersey::random(rng);
         let ship_color = jersey.color;

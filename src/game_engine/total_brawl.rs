@@ -1,8 +1,8 @@
 use super::{action::*, game::Game, types::*};
 use crate::core::{constants::TirednessCost, player::Trait, Skill};
-use rand::{seq::IndexedRandom, RngExt};
+use rand::{seq::SliceRandom, Rng};
 use rand_chacha::ChaCha8Rng;
-use std::collections::HashMap;
+use alloc::collections::HashMap;
 
 pub(crate) fn execute(
     input: &ActionOutput,
@@ -136,7 +136,7 @@ pub(crate) fn execute(
             };
         }
         _ => {
-            if action_rng.random_bool(0.5) {
+            if action_rng.gen_bool(0.5) {
                 // Close win for attacking team
                 output.description = [
                     format!(

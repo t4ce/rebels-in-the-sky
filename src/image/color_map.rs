@@ -142,7 +142,7 @@ impl ColorPreset {
 
     pub fn random(rng: &mut ChaCha8Rng) -> Self {
         Self::iter()
-            .choose_stable(rng)
+            .choose(rng)
             .expect("There should be at least a color")
     }
 

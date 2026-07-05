@@ -4,9 +4,9 @@ use crate::core::{
     skill::GameSkill,
     GamePosition,
 };
-use rand::{seq::IndexedRandom, RngExt};
+use rand::{seq::SliceRandom, Rng};
 use rand_chacha::ChaCha8Rng;
-use std::collections::HashMap;
+use alloc::collections::HashMap;
 
 pub(crate) fn execute(
     input: &ActionOutput,
@@ -31,7 +31,7 @@ pub(crate) fn execute(
                     game.attacking_team().name,
                 ),
                     start_at: input.end_at,
-                    end_at: input.end_at.plus(4 + action_rng.random_range(0..=3)),
+                    end_at: input.end_at.plus(4 + action_rng.gen_range(0..=3)),
                     home_score: input.home_score,
                     away_score: input.away_score,
                     ..Default::default()
@@ -57,7 +57,7 @@ pub(crate) fn execute(
                     game.attacking_team().name,
                 ),
                     start_at: input.end_at,
-                    end_at: input.end_at.plus(4 + action_rng.random_range(0..=3)),
+                    end_at: input.end_at.plus(4 + action_rng.gen_range(0..=3)),
                     home_score: input.home_score,
                     away_score: input.away_score,
                     ..Default::default()
@@ -99,7 +99,7 @@ pub(crate) fn execute(
         ..Default::default()
     };
 
-    let timer_increase = 4 + action_rng.random_range(0..=2);
+    let timer_increase = 4 + action_rng.gen_range(0..=2);
 
     let atk_result = playmaker.roll(action_rng, Some(play_idx as GamePosition))
         + playmaker.technical.passing.game_value()
@@ -291,9 +291,9 @@ pub(crate) fn execute(
                 } else {vec![]};
 
                 let end_at = if with_steal {
-                    input.end_at.plus(1 +  action_rng.random_range(0..=2))
+                    input.end_at.plus(1 +  action_rng.gen_range(0..=2))
                 } else {
-                    input.end_at.plus(4 +  action_rng.random_range(0..=2))
+                    input.end_at.plus(4 +  action_rng.gen_range(0..=2))
                 };
 
                 let description = if with_steal {

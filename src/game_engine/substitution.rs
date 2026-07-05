@@ -16,9 +16,9 @@ use crate::{
     types::{SortablePlayerMap, Tick},
 };
 use itertools::Itertools;
-use rand::{seq::IndexedRandom, RngExt};
+use rand::{seq::SliceRandom, Rng};
 use rand_chacha::ChaCha8Rng;
-use std::collections::HashMap;
+use alloc::collections::HashMap;
 
 fn get_subs<'a>(
     players: &[&'a Player],
@@ -119,7 +119,7 @@ fn get_subs<'a>(
             .clamp(0.0, 1.0)
     };
 
-    if action_rng.random_bool(sub_probability) {
+    if action_rng.gen_bool(sub_probability) {
         vec![in_candidate, out_candidate]
     } else {
         vec![]

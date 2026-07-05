@@ -37,8 +37,8 @@ use ratatui::{
     widgets::{Clear, Paragraph, Wrap},
 };
 use ratatui_textarea::{CursorMove, TextArea};
-use std::cmp::min;
-use std::collections::HashMap;
+use core::cmp::min;
+use alloc::collections::HashMap;
 use strum::IntoEnumIterator;
 use uuid::uuid;
 
@@ -142,7 +142,8 @@ impl NewTeamScreen {
                 .border_style(UiStyle::UNSELECTABLE)
                 .title("Spaceship name"),
         );
-        let rng = &mut ChaCha8Rng::from_rng(&mut rand::rng());
+        let rng = &mut ChaCha8Rng::from_rng(&mut rand::thread_rng())
+            .expect("thread RNG should seed ChaCha8Rng");
         let mut color_presets = ColorPreset::iter().collect_vec();
         color_presets.shuffle(rng);
         let red_color_preset = color_presets[0];

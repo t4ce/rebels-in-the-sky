@@ -1,3 +1,5 @@
+extern crate alloc;
+
 pub mod app;
 pub mod args;
 #[cfg(feature = "audio")]
@@ -6,14 +8,11 @@ pub mod core;
 pub mod crossterm_event_handler;
 pub mod game_engine;
 pub mod image;
+pub mod logging;
 pub mod network;
 #[cfg(feature = "relayer")]
 pub mod relayer;
-#[cfg(feature = "ssh")]
-pub mod session_auth;
 pub mod space_adventure;
-#[cfg(feature = "ssh")]
-pub mod ssh_game;
 pub mod store;
 pub mod tick_event_handler;
 pub mod tui;

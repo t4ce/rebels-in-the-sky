@@ -28,10 +28,10 @@ use libp2p::{
     TransportError,
 };
 use libp2p::{Multiaddr, Swarm};
-use std::collections::hash_map::DefaultHasher;
-use std::collections::HashMap;
-use std::fmt::Debug;
-use std::hash::{Hash, Hasher};
+use alloc::collections::hash_map::DefaultHasher;
+use alloc::collections::HashMap;
+use core::fmt::Debug;
+use core::hash::{Hash, Hasher};
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
@@ -1277,7 +1277,8 @@ mod tests {
     #[test]
     fn test_send_own_team() -> AppResult<()> {
         let mut world = World::new(None);
-        let rng = &mut ChaCha8Rng::from_rng(&mut rand::rng());
+        let rng = &mut ChaCha8Rng::from_rng(&mut rand::thread_rng())
+            .expect("thread RNG should seed ChaCha8Rng");
         let home_planet = world.planets.keys().next().unwrap().clone();
         let team_name = "Testen".to_string();
         let ship_name = "Tosten".to_string();

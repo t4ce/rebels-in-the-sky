@@ -1,7 +1,6 @@
 #[cfg(test)]
 mod tests {
     use itertools::Itertools;
-    use rayon::prelude::*;
     use rebels::core::{Player, Rated, Skill, Team, TickInterval, MAX_PLAYERS_PER_GAME};
     use rebels::game_engine::action::{ActionOutput, ActionSituation, Advantage};
     use rebels::game_engine::game::Game;
@@ -688,7 +687,7 @@ mod tests {
             .collect_vec();
 
         let results: Vec<MatchupResult> = tactic_pairs
-            .par_iter()
+            .iter()
             .map(|&(home_tactic, away_tactic)| {
                 let home_team_settings = (
                     home_tactic,

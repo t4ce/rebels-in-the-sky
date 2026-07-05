@@ -15,10 +15,10 @@ use crate::{core::spaceship::Spaceship, types::AppResult};
 use glam::{I16Vec2, Vec2};
 use image::imageops::{rotate270, rotate90};
 use image::{Pixel, Rgba, RgbaImage};
-use rand::seq::IndexedRandom;
-use rand::{RngExt, SeedableRng};
+use rand::seq::SliceRandom;
+use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
-use std::collections::HashMap;
+use alloc::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ShooterState {
@@ -159,19 +159,20 @@ impl Body for SpaceshipEntity {
         self.previous_position = self.position;
 
         let mut callbacks = vec![];
-        let rng = &mut ChaCha8Rng::from_rng(&mut rand::rng());
+        let rng = &mut ChaCha8Rng::from_rng(&mut rand::thread_rng())
+            .expect("thread RNG should seed ChaCha8Rng");
 
         // Generate fire particle if ship is damaged
         for _ in self.current_durability as usize..(0.5 * self.max_durability) as usize {
-            if rng.random_bool(0.2) {
+            if rng.gen_bool(0.2) {
                 let position = self.center().as_vec2()
-                    + Vec2::new(rng.random_range(-1.0..1.0), rng.random_range(-1.0..1.0));
+                    + Vec2::new(rng.gen_range(-1.0..1.0), rng.gen_range(-1.0..1.0));
 
-                let smoke_color_rng = rng.random_range(0..=80);
+                let smoke_color_rng = rng.gen_range(0..=80);
                 callbacks.push(SpaceCallback::GenerateParticle {
                     position,
                     velocity: -1.5 * self.acceleration.normalize()
-                        + Vec2::new(rng.random_range(-1.5..1.5), rng.random_range(-2.5..2.5)),
+                        + Vec2::new(rng.gen_range(-1.5..1.5), rng.gen_range(-2.5..2.5)),
                     color: Rgba([
                         105 + smoke_color_rng,
                         75 + smoke_color_rng,
@@ -179,7 +180,7 @@ impl Body for SpaceshipEntity {
                         255,
                     ]),
                     particle_state: EntityState::Decaying {
-                        lifetime: 1.5 + rng.random_range(0.5..1.5),
+                        lifetime: 1.5 + rng.gen_range(0.5..1.5),
                     },
                     layer: self.layer() + 1,
                 });
@@ -190,21 +191,21 @@ impl Body for SpaceshipEntity {
         if self.acceleration.length_squared() > 0.0 {
             for &point in self.engine_exhaust.iter() {
                 if self.velocity.length_squared() < self.acceleration.length_squared() / 2.0
-                    || rng.random_bool(0.25)
+                    || rng.gen_bool(0.25)
                 {
-                    let layer = rng.random_range(0..2);
+                    let layer = rng.gen_range(0..2);
                     callbacks.push(SpaceCallback::GenerateParticle {
                         position: self.position + point.as_vec2(),
                         velocity: -3.0 * self.acceleration.normalize()
-                            + Vec2::new(rng.random_range(-0.5..0.5), rng.random_range(-0.5..0.5)),
+                            + Vec2::new(rng.gen_range(-0.5..0.5), rng.gen_range(-0.5..0.5)),
                         color: Rgba([
-                            205 + rng.random_range(0..50),
-                            55 + rng.random_range(0..200),
-                            rng.random_range(0..55),
+                            205 + rng.gen_range(0..50),
+                            55 + rng.gen_range(0..200),
+                            rng.gen_range(0..55),
                             255,
                         ]),
                         particle_state: EntityState::Decaying {
-                            lifetime: 2.0 + rng.random_range(0.0..1.5),
+                            lifetime: 2.0 + rng.gen_range(0.0..1.5),
                         },
                         layer,
                     });
@@ -425,16 +426,13 @@ impl GameEntity for SpaceshipEntity {
         self.charge_unit.recharge(deltatime);
 
         if self.releasing_scraps {
-            let rng = &mut rand::rng();
+            let rng = &mut rand::thread_rng();
             callbacks.push(SpaceCallback::GenerateParticle {
                 position: self.center().as_vec2(),
-                velocity: Vec2::new(
-                    -6.0 + rng.random_range(-0.5..0.5),
-                    rng.random_range(-1.5..1.5),
-                ),
+                velocity: Vec2::new(-6.0 + rng.gen_range(-0.5..0.5), rng.gen_range(-1.5..1.5)),
                 color: Resource::SCRAPS.color(),
                 particle_state: EntityState::Decaying {
-                    lifetime: 3.0 + rng.random_range(0.0..1.5),
+                    lifetime: 3.0 + rng.gen_range(0.0..1.5),
                 },
                 layer: 2,
             });
@@ -450,7 +448,7 @@ impl GameEntity for SpaceshipEntity {
                 self.thrust_towards(acceleration);
             }
             SpaceCallback::DestroyEntity { .. } => {
-                let rng = &mut rand::rng();
+                let rng = &mut rand::thread_rng();
                 let mut callbacks = vec![];
 
                 if let Some(id) = self.collector_id {
@@ -466,25 +464,20 @@ impl GameEntity for SpaceshipEntity {
                     callbacks.push(SpaceCallback::GenerateParticle {
                         position,
                         velocity: self.velocity
-                            + Vec2::new(
-                                rng.random_range(-10.0..10.0),
-                                rng.random_range(-10.0..10.0),
-                            ) * 3.0,
+                            + Vec2::new(rng.gen_range(-10.0..10.0), rng.gen_range(-10.0..10.0))
+                                * 3.0,
                         color: color.to_rgba(),
                         particle_state: EntityState::Decaying {
-                            lifetime: 5.0 + rng.random_range(-1.5..1.5),
+                            lifetime: 5.0 + rng.gen_range(-1.5..1.5),
                         },
-                        layer: rng.random_range(0..=2),
+                        layer: rng.gen_range(0..=2),
                     });
                 }
 
                 for _ in 4..8 {
                     callbacks.push(SpaceCallback::GenerateFragment {
                         position,
-                        velocity: Vec2::new(
-                            rng.random_range(-3.5..3.5),
-                            rng.random_range(-3.5..3.5),
-                        ),
+                        velocity: Vec2::new(rng.gen_range(-3.5..3.5), rng.gen_range(-3.5..3.5)),
                         resource: Resource::GOLD,
                         amount: 1,
                     });
@@ -492,10 +485,8 @@ impl GameEntity for SpaceshipEntity {
                 for _ in 10..16 {
                     callbacks.push(SpaceCallback::GenerateFragment {
                         position,
-                        velocity: Vec2::new(
-                            rng.random_range(-3.5..3.5),
-                            rng.random_range(-3.5..3.5),
-                        ) * 2.0,
+                        velocity: Vec2::new(rng.gen_range(-3.5..3.5), rng.gen_range(-3.5..3.5))
+                            * 2.0,
                         resource: Resource::SCRAPS,
                         amount: 2,
                     });

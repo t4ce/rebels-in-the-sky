@@ -32,10 +32,10 @@ use anyhow::anyhow;
 use itertools::Itertools;
 use libp2p::PeerId;
 use rand::seq::{IteratorRandom, SliceRandom};
-use rand::{RngExt, SeedableRng};
+use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use alloc::collections::{HashMap, HashSet};
 use strum::IntoEnumIterator;
 
 // const GAME_CLEANUP_TIME: Tick = 10 * SECONDS;
@@ -146,10 +146,10 @@ impl World {
         extra_potential: Option<Skill>,
     ) -> AppResult<()> {
         let number_free_pirates = planet.total_population();
-        let mut position = rng.random_range(0..NUM_GAME_POSITIONS) as GamePosition;
+        let mut position = rng.gen_range(0..NUM_GAME_POSITIONS) as GamePosition;
 
         for _ in 0..number_free_pirates {
-            let pirate_base_level = Some(rng.random_range(-2.0..2.0));
+            let pirate_base_level = Some(rng.gen_range(-2.0..2.0));
             self.generate_random_pirate(
                 rng,
                 planet,
@@ -201,7 +201,7 @@ impl World {
 
         self.teams.insert(team.id, team);
 
-        let team_base_level = rng.random_range(2.0..=14.0);
+        let team_base_level = rng.gen_range(2.0..=14.0);
         for position in 0..NUM_GAME_POSITIONS {
             let player_id = self.generate_random_pirate(
                 rng,
@@ -1070,7 +1070,7 @@ impl World {
         rng_seed = (rng_seed as Tick + starting_at) % (u64::MAX as Tick);
 
         let rng = &mut ChaCha8Rng::seed_from_u64(rng_seed);
-        let game_id = GameId::from_u128(rng.random());
+        let game_id = GameId::from_u128(rng.gen());
 
         let planet = self.planets.get_or_err(&planet_id)?;
 
@@ -1462,7 +1462,8 @@ impl World {
         bonus: f32,
         planet: &Planet,
     ) -> AppResult<ResourceMap> {
-        let mut rng = ChaCha8Rng::from_rng(&mut rand::rng());
+        let mut rng = ChaCha8Rng::from_rng(&mut rand::thread_rng())
+            .expect("thread RNG should seed ChaCha8Rng");
         let mut resources = HashMap::new();
 
         for (&resource, &amount) in planet.resources.iter() {
@@ -1471,7 +1472,7 @@ impl World {
             // since we clamp at 0.
             let base = ((2.0_f32).powf(amount as f32 / 2.0) * bonus) as i32;
             for _ in 0..8 {
-                found_amount += rng.random_range(-base / 2..base).max(0) as u32;
+                found_amount += rng.gen_range(-base / 2..base).max(0) as u32;
             }
             resources.insert(resource, found_amount);
         }
@@ -1484,20 +1485,21 @@ impl World {
         planet: &Planet,
         duration: Tick,
     ) -> AppResult<Vec<PlayerId>> {
-        let rng = &mut ChaCha8Rng::from_rng(&mut rand::rng());
+        let rng = &mut ChaCha8Rng::from_rng(&mut rand::thread_rng())
+            .expect("thread RNG should seed ChaCha8Rng");
         let mut free_pirates = vec![];
 
         let duration_bonus = (duration as f32 / HOURS as f32).powf(1.3);
         let population_bonus = planet.total_population() as f32;
 
         let amount = rng
-            .random_range((-32 + (population_bonus + duration_bonus) as i32).min(0)..3)
+            .gen_range((-32 + (population_bonus + duration_bonus) as i32).min(0)..3)
             .max(0);
 
         if amount > 0 {
             for _ in 0..amount {
-                let base_level = Some(rng.random_range(0.0..7.0));
-                let extra_potential = Some(1.0 + rng.random_range(0.0..5.0));
+                let base_level = Some(rng.gen_range(0.0..7.0));
+                let extra_potential = Some(1.0 + rng.gen_range(0.0..5.0));
                 let player_id =
                     self.generate_random_pirate(rng, planet, None, base_level, extra_potential)?;
 
@@ -2298,7 +2300,8 @@ impl World {
                     let mut around_planet = self.planets.get_or_err(&around)?.clone();
                     team.current_location = TeamLocation::OnPlanet { planet_id: around };
 
-                    let mut rng = ChaCha8Rng::from_rng(&mut rand::rng());
+                    let mut rng = ChaCha8Rng::from_rng(&mut rand::thread_rng())
+                        .expect("thread RNG should seed ChaCha8Rng");
 
                     // If team has already MAX_NUM_ASTEROID_PER_TEAM, it cannot find another one.
                     // Finding asteroids becomes progressively more difficult.
@@ -2312,14 +2315,14 @@ impl World {
                         .min(1.0);
 
                     if asteroid_discovery_probability > 0.0
-                        && rng.random_bool(asteroid_discovery_probability)
+                        && rng.gen_bool(asteroid_discovery_probability)
                     {
                         // We have temporarily set the team back on the exploration base planet,
                         // until the asteroid is accepted and generated.
                         callbacks.push(UiCallback::PushUiPopup {
                             popup_message: PopupMessage::AsteroidNameDialog {
                                 timestamp: current_tick,
-                                asteroid_type: rng.random_range(0..30),
+                                asteroid_type: rng.gen_range(0..30),
                             },
                         });
                     }
@@ -2493,7 +2496,8 @@ impl World {
                     Team::best_position_assignment(pirates, team.game_position_fluidity);
             }
 
-            let rng = &mut ChaCha8Rng::from_rng(&mut rand::rng());
+            let rng = &mut ChaCha8Rng::from_rng(&mut rand::thread_rng())
+                .expect("thread RNG should seed ChaCha8Rng");
             team.game_tactic = Tactic::random(rng);
         }
 
@@ -2757,7 +2761,8 @@ impl World {
     }
 
     fn tick_space_coves(&mut self) -> AppResult<()> {
-        let rng = &mut ChaCha8Rng::from_rng(&mut rand::rng());
+        let rng = &mut ChaCha8Rng::from_rng(&mut rand::thread_rng())
+            .expect("thread RNG should seed ChaCha8Rng");
         for (_, team) in self.teams.iter_mut() {
             //TODO: once we remove local teams, we can remove this loop and only apply to own_team
             if team.peer_id.is_some() {
@@ -2823,9 +2828,10 @@ impl World {
                 continue;
             }
 
-            let rng = &mut ChaCha8Rng::from_rng(&mut rand::rng());
+            let rng = &mut ChaCha8Rng::from_rng(&mut rand::thread_rng())
+                .expect("thread RNG should seed ChaCha8Rng");
             if player.morale < MORALE_THRESHOLD_FOR_LEAVING
-                && rng.random_bool(
+                && rng.gen_bool(
                     (1.0 - player.morale / MAX_SKILL) as f64 * LEAVING_PROBABILITY_MORALE_MODIFIER,
                 )
             {
@@ -2886,10 +2892,11 @@ impl World {
                 continue;
             }
 
-            let rng = &mut ChaCha8Rng::from_rng(&mut rand::rng());
+            let rng = &mut ChaCha8Rng::from_rng(&mut rand::thread_rng())
+                .expect("thread RNG should seed ChaCha8Rng");
             if player.info.relative_age() > MIN_RELATIVE_RETIREMENT_AGE {
                 // Add extra check to avoid running rng call unnecessarily.
-                if player.info.relative_age() > rng.random_range(MIN_RELATIVE_RETIREMENT_AGE..1.0) {
+                if player.info.relative_age() > rng.gen_range(MIN_RELATIVE_RETIREMENT_AGE..1.0) {
                     releasing_player_ids.push(player_id);
 
                     if player.team.expect("Team should be some") == self.own_team_id {
@@ -2944,7 +2951,8 @@ impl World {
     }
 
     fn generate_random_games(&mut self, num_games: usize) -> AppResult<()> {
-        let rng = &mut ChaCha8Rng::from_rng(&mut rand::rng());
+        let rng = &mut ChaCha8Rng::from_rng(&mut rand::thread_rng())
+            .expect("thread RNG should seed ChaCha8Rng");
 
         // Phase 1: collect one matchup per eligible planet (immutable reads only).
         let mut matchups: Vec<(TeamId, TeamId)> = vec![];
@@ -2968,7 +2976,7 @@ impl World {
             if candidate_teams.len() < 2 {
                 continue;
             }
-            let teams = candidate_teams.iter().sample(rng, 2);
+            let teams = candidate_teams.iter().choose_multiple(rng, 2);
             matchups.push((teams[0].id, teams[1].id));
         }
 
@@ -3300,7 +3308,7 @@ mod test {
         ui::UiCallback,
     };
     use itertools::Itertools;
-    use rand::{RngExt, SeedableRng};
+    use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha8Rng;
     use uuid::uuid;
 
@@ -3311,11 +3319,11 @@ mod test {
         let mut v1 = vec![];
         let mut v2 = vec![];
         for _ in 0..10 {
-            v1.push(rng.random::<u8>());
+            v1.push(rng.gen::<u8>());
         }
         let rng = &mut ChaCha8Rng::seed_from_u64(seed);
         for _ in 0..10 {
-            v2.push(rng.random::<u8>());
+            v2.push(rng.gen::<u8>());
         }
         assert_eq!(v1, v2);
     }
@@ -3343,7 +3351,8 @@ mod test {
     #[test]
     fn test_exploration_result() -> AppResult<()> {
         let mut world = World::new(None);
-        let rng = &mut ChaCha8Rng::from_rng(&mut rand::rng());
+        let rng = &mut ChaCha8Rng::from_rng(&mut rand::thread_rng())
+            .expect("thread RNG should seed ChaCha8Rng");
         let jupiter_id = uuid!("71a43700-0000-0000-0002-000000000002");
         let planet = world.planets.get(&jupiter_id).unwrap().clone();
         println!(
@@ -3422,7 +3431,8 @@ mod test {
     #[test]
     fn test_exploration_result_capping() -> AppResult<()> {
         let mut world = World::new(None);
-        let rng = &mut ChaCha8Rng::from_rng(&mut rand::rng());
+        let rng = &mut ChaCha8Rng::from_rng(&mut rand::thread_rng())
+            .expect("thread RNG should seed ChaCha8Rng");
         let jupiter_id = uuid!("71a43700-0000-0000-0002-000000000002");
         let planet = world.planets.get(&jupiter_id).unwrap().clone();
         println!(
@@ -3512,7 +3522,8 @@ mod test {
         let mut app = App::test_default()?;
         app.new_world();
 
-        let rng = &mut ChaCha8Rng::from_rng(&mut rand::rng());
+        let rng = &mut ChaCha8Rng::from_rng(&mut rand::thread_rng())
+            .expect("thread RNG should seed ChaCha8Rng");
         let planet = PLANET_DATA[0].clone();
         let team_id =
             app.world
@@ -3599,7 +3610,8 @@ mod test {
         let mut app = App::test_default()?;
         app.new_world();
 
-        let rng = &mut ChaCha8Rng::from_rng(&mut rand::rng());
+        let rng = &mut ChaCha8Rng::from_rng(&mut rand::thread_rng())
+            .expect("thread RNG should seed ChaCha8Rng");
         let planet = PLANET_DATA[0].clone();
         let home_id =
             app.world

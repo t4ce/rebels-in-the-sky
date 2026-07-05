@@ -13,7 +13,7 @@ use crate::types::{AppResult, SystemTimeTick, Tick};
 use crate::AudioPlayerState;
 use crate::{core::world::World, store::save_game_exists};
 use core::fmt::Debug;
-use rand::seq::IndexedRandom;
+use rand::seq::SliceRandom;
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 use ratatui::crossterm;
@@ -25,7 +25,7 @@ use ratatui::{
     prelude::{Constraint, Layout, Rect},
     widgets::{Paragraph, Wrap},
 };
-use std::vec;
+use alloc::vec;
 
 const TITLE_WIDTH: u16 = 71;
 const BUTTON_WIDTH: u16 = 36;
@@ -112,7 +112,10 @@ impl SplashScreen {
         selection_text.push("Quit".to_string());
 
         let quote = QUOTES
-            .choose(&mut ChaCha8Rng::from_rng(&mut rand::rng()))
+            .choose(
+                &mut ChaCha8Rng::from_rng(&mut rand::thread_rng())
+                    .expect("thread RNG should seed ChaCha8Rng"),
+            )
             .expect("There should be a quote");
         let index = if can_load_world { 0 } else { 1 };
         let title = big_text(&TITLE);
@@ -325,7 +328,10 @@ impl Screen for SplashScreen {
             },
             KeyCode::Char('r') => {
                 self.quote = QUOTES
-                    .choose(&mut ChaCha8Rng::from_rng(&mut rand::rng()))
+                    .choose(
+                        &mut ChaCha8Rng::from_rng(&mut rand::thread_rng())
+                            .expect("thread RNG should seed ChaCha8Rng"),
+                    )
                     .expect("There should be a quote");
             }
 
