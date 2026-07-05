@@ -1,5 +1,5 @@
-use std::collections::HashSet;
-use std::iter::zip;
+use alloc::collections::HashSet;
+use core::iter::zip;
 
 use super::ui_frame::UiFrame;
 use super::{
@@ -1883,7 +1883,7 @@ fn format_player_skills(player: &'_ Player) -> Vec<Line<'_>> {
             )
         })
         .collect::<Vec<(String, Skill, Skill)>>();
-    roles.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+    roles.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(core::cmp::Ordering::Equal));
 
     let mut spans = vec![];
     spans.push(Span::styled(

@@ -38,10 +38,10 @@ use ratatui::{
     Frame,
 };
 use ratatui_textarea::{CursorMove, TextArea};
-use std::collections::HashMap;
+use alloc::collections::HashMap;
 use std::sync::LazyLock;
 use std::time::Instant;
-use std::vec;
+use alloc::vec;
 use strum_macros::Display;
 
 const MAX_POPUP_MESSAGES: usize = 8;

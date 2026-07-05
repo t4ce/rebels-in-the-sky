@@ -26,7 +26,7 @@ use ratatui::{
     prelude::Rect,
     widgets::Paragraph,
 };
-use std::fmt::Display;
+use core::fmt::Display;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub enum TournamentView {
@@ -71,7 +71,7 @@ impl TournamentView {
 }
 
 impl Display for TournamentView {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::All => write!(f, "All"),
             Self::Open => write!(f, "Open to registration"),

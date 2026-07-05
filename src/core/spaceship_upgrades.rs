@@ -29,7 +29,7 @@ impl Default for SpaceshipUpgradeTarget {
 }
 
 impl Display for SpaceshipUpgradeTarget {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::ChargeUnit { .. } => write!(f, "Charge unit"),
             Self::Hull { .. } => write!(f, "Hull"),

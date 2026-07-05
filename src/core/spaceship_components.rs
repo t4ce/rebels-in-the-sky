@@ -117,7 +117,7 @@ pub enum Hull {
 }
 
 impl Display for Hull {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::ShuttleSmall => write!(f, "Small"),
             Self::ShuttleStandard => write!(f, "Standard"),
@@ -252,7 +252,7 @@ pub enum Engine {
 }
 
 impl Display for Engine {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::ShuttleSingle => write!(f, "Single"),
             Self::ShuttleDouble => write!(f, "Double"),
@@ -452,7 +452,7 @@ pub enum Shooter {
 }
 
 impl Display for Shooter {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::ShuttleSingle => write!(f, "Single"),
             Self::ShuttleTriple => write!(f, "Triple"),
@@ -584,7 +584,7 @@ pub enum Storage {
 }
 
 impl Display for Storage {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::ShuttleSingle | Self::PincherSingle | Self::JesterSingle => write!(f, "Single"),
             Self::ShuttleDouble => write!(f, "Double"),

@@ -34,7 +34,7 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Paragraph, Wrap},
 };
-use std::collections::HashMap;
+use alloc::collections::HashMap;
 use strum::IntoEnumIterator;
 
 #[derive(Debug, Default, PartialEq, Clone, Copy)]

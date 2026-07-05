@@ -9,7 +9,7 @@ use crate::types::AppResult;
 use anyhow::anyhow;
 use glam::I16Vec2;
 use image::RgbaImage;
-use std::fmt::Debug;
+use core::fmt::Debug;
 use strum::Display;
 
 #[derive(Debug, Display)]

@@ -42,7 +42,7 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Cell, Paragraph, Row, Table, Wrap},
 };
-use std::collections::HashMap;
+use alloc::collections::HashMap;
 
 #[derive(Debug, Default)]
 pub struct GamePanel {

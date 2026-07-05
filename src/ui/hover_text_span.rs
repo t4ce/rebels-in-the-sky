@@ -48,8 +48,8 @@ impl InteractiveWidget for HoverTextSpan<'_> {
     }
 }
 
-impl std::fmt::Display for HoverTextSpan<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for HoverTextSpan<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "{}", &self.span.content)
     }
 }

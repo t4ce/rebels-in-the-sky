@@ -1,4 +1,4 @@
-use std::hash::Hash;
+use core::hash::Hash;
 
 use super::color_map::{ColorMap, ColorPreset};
 use super::components::*;

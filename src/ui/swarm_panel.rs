@@ -34,7 +34,7 @@ use ratatui::{
     widgets::{List, ListItem},
 };
 use ratatui_textarea::{CursorMove, TextArea};
-use std::collections::{BTreeSet, HashMap};
+use alloc::collections::{BTreeSet, HashMap};
 use strum_macros::Display;
 
 const EVENT_DUPLICATE_DELAY: Tick = 2 * MINUTES;
@@ -135,13 +135,13 @@ impl PartialEq for ChatEvent {
 impl Eq for ChatEvent {}
 
 impl PartialOrd for ChatEvent {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
 impl Ord for ChatEvent {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
         self.timestamp
             .cmp(&other.timestamp)
             .then_with(|| self.peer_id.cmp(&other.peer_id))

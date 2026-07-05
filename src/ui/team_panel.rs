@@ -39,8 +39,8 @@ use ratatui::{
     prelude::Rect,
     widgets::Paragraph,
 };
-use std::collections::HashMap;
-use std::fmt::Display;
+use alloc::collections::HashMap;
+use core::fmt::Display;
 use std::sync::{LazyLock, Mutex};
 
 const IMG_FRAME_WIDTH: u16 = 80;
@@ -94,7 +94,7 @@ impl TeamView {
 }
 
 impl Display for TeamView {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::All => write!(f, "All"),
             Self::OpenToChallenge => write!(f, "Open to challenge"),

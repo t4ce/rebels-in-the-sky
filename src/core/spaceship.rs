@@ -14,7 +14,7 @@ use crate::{
 use rand::seq::IteratorRandom;
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
-use std::hash::Hash;
+use core::hash::Hash;
 use strum::IntoEnumIterator;
 use strum_macros::{Display, EnumIter};
 

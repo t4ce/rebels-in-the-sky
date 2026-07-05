@@ -13,7 +13,7 @@ pub enum Resource {
 }
 
 impl Display for Resource {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Resource::SATOSHI => write!(f, "Satoshi"),
             Resource::GOLD => write!(f, "Gold"),

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use alloc::collections::HashMap;
 
 use super::{planet::Planet, skill::GameSkill, types::Population};
 use crate::store::ASSETS_DIR;

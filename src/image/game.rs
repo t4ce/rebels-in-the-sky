@@ -1,8 +1,8 @@
 use super::utils::open_image;
 use crate::types::AppResult;
 use image::{Rgba, RgbaImage};
-use std::cmp::min;
-use std::collections::HashMap;
+use core::cmp::min;
+use alloc::collections::HashMap;
 use strum::Display;
 
 const FLOOR_COLOR: Rgba<u8> = Rgba([254, 229, 165, 255]);

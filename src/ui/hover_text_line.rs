@@ -70,7 +70,7 @@ impl<'a> HoverTextLine<'a> {
 
 impl<'a> IntoIterator for HoverTextLine<'a> {
     type Item = HoverTextSpan<'a>;
-    type IntoIter = std::vec::IntoIter<HoverTextSpan<'a>>;
+    type IntoIter = alloc::vec::IntoIter<HoverTextSpan<'a>>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.spans.into_iter()
@@ -178,8 +178,8 @@ impl Widget for HoverTextLine<'_> {
     }
 }
 
-impl std::fmt::Display for HoverTextLine<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for HoverTextLine<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         for span in &self.spans {
             write!(f, "{span}")?;
         }

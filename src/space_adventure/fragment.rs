@@ -5,7 +5,7 @@ use crate::{
 };
 use glam::{I16Vec2, Vec2};
 use image::RgbaImage;
-use std::collections::HashMap;
+use alloc::collections::HashMap;
 
 const MAGNET_ACCELERATION: f32 = 35.0;
 

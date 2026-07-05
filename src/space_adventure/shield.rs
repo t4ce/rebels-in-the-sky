@@ -2,7 +2,7 @@ use super::{collisions::HitBox, space_callback::SpaceCallback, traits::*};
 use super::{entity::Entity, visual_effects::VisualEffect};
 use glam::{I16Vec2, Vec2};
 use image::{Rgba, RgbaImage};
-use std::collections::HashMap;
+use alloc::collections::HashMap;
 
 const HIT_BOX_RADIUS: i16 = 16;
 const COLLISION_DAMAGE: f32 = 3.5;

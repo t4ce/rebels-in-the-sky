@@ -27,8 +27,8 @@ use ratatui::prelude::Rect;
 use ratatui::style::Stylize;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
-use std::collections::HashSet;
-use std::fmt::{self, Display};
+use alloc::collections::HashSet;
+use core::fmt::{self, Display};
 
 const BUILDINGS: [SpaceCoveUpgradeTarget; 4] = [
     SpaceCoveUpgradeTarget::TeleportationPad,
@@ -855,8 +855,8 @@ impl Screen for SpaceCovePanel {
                 let a_own = a.0 == own_team.id;
                 let b_own = b.0 == own_team.id;
                 match (a_own, b_own) {
-                    (true, false) => std::cmp::Ordering::Less,
-                    (false, true) => std::cmp::Ordering::Greater,
+                    (true, false) => core::cmp::Ordering::Less,
+                    (false, true) => core::cmp::Ordering::Greater,
                     _ => a.2.cmp(b.2),
                 }
             });
@@ -886,7 +886,7 @@ impl Screen for SpaceCovePanel {
 
         match selected_asteroid_id.and_then(|id| world.planets.get(&id)) {
             Some(asteroid) => {
-                let previous_visitors = std::mem::take(&mut self.visiting_team_ids);
+                let previous_visitors = core::mem::take(&mut self.visiting_team_ids);
                 let new_set: HashSet<TeamId> = asteroid.team_ids.iter().copied().collect();
                 self.visiting_team_ids = previous_visitors
                     .iter()
@@ -941,7 +941,7 @@ impl Screen for SpaceCovePanel {
                         .iter()
                         .filter(|(_, s)| s.planet_id == planet_id)
                         .collect::<Vec<_>>();
-                    past.sort_by_key(|(_, s)| std::cmp::Reverse(s.ended_at));
+                    past.sort_by_key(|(_, s)| core::cmp::Reverse(s.ended_at));
 
                     current
                         .into_iter()

@@ -84,7 +84,7 @@ impl Honour {
                     .iter()
                     .map(
                         |p| // Discriminant disregards internal fields (Humans have a region internal field)
-                        std::mem::discriminant(&p.info.population),
+                        core::mem::discriminant(&p.info.population),
                     )
                     .unique()
                     .count()

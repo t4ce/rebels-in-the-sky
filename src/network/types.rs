@@ -17,8 +17,8 @@ use anyhow::anyhow;
 use itertools::Itertools;
 use libp2p::PeerId;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::fmt::Debug;
+use alloc::collections::HashMap;
+use core::fmt::Debug;
 use strum_macros::Display;
 
 #[derive(Debug, Display, Serialize, Deserialize, Clone, PartialEq)]

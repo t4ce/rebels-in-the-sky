@@ -6,7 +6,7 @@ use crate::{
 use itertools::Itertools;
 use libp2p::{Multiaddr, PeerId};
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use alloc::collections::{HashMap, HashSet};
 
 const CHAT_RETENTION_DURATION: Tick = 7 * DAYS;
 const PEERS_RETENTION_DURATION: Tick = 30 * DAYS;

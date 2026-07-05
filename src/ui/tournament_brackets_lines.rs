@@ -373,7 +373,7 @@ pub fn get_bracket_lines(
 
         // Apply the reordering.
         let mut old: Vec<Option<TournamentDescription>> =
-            std::mem::take(current).into_iter().map(Some).collect();
+            core::mem::take(current).into_iter().map(Some).collect();
         *current = target
             .into_iter()
             .filter_map(|opt| old.get_mut(opt?).and_then(|slot| slot.take()))
