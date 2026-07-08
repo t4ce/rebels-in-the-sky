@@ -2,7 +2,7 @@ use super::{collisions::HitBox, space_callback::SpaceCallback, traits::*, utils:
 use super::{constants::*, entity::Entity};
 use glam::{I16Vec2, Vec2};
 use image::{Rgba, RgbaImage};
-use alloc::collections::HashMap;
+use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct ParticleEntity {

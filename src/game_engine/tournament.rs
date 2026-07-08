@@ -1,6 +1,6 @@
 use crate::{
     app_version,
-    core::{utils::is_default, Planet, Rated, Skill, Team, MINUTES, MIN_SKILL, SECONDS},
+    core::{MIN_SKILL, MINUTES, Planet, Rated, SECONDS, Skill, Team, utils::is_default},
     game_engine::{
         game::{Game, GameSummary},
         timer,
@@ -13,11 +13,11 @@ use crate::{
 };
 use anyhow::anyhow;
 use itertools::Itertools;
-use rand::{seq::SliceRandom, Rng, SeedableRng};
+use rand::{Rng, SeedableRng, seq::SliceRandom};
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
-use alloc::collections::HashMap;
+use std::collections::HashMap;
 use strum::Display;
 
 pub type TournamentId = uuid::Uuid;
@@ -190,7 +190,7 @@ impl Tournament {
         starting_at: Tick,
     ) -> Game {
         Game::new(
-            GameId::from_u128(rng.gen()),
+            GameId::from_u128(rng.r#gen()),
             home_team_in_game,
             away_team_in_game,
             starting_at,
@@ -569,7 +569,7 @@ impl Rated for Tournament {
 #[cfg(test)]
 mod tests {
 
-    use crate::core::{Player, Team, TeamLocation, TickInterval, MAX_PLAYERS_PER_GAME, SECONDS};
+    use crate::core::{MAX_PLAYERS_PER_GAME, Player, SECONDS, Team, TeamLocation, TickInterval};
     use crate::game_engine::game::GameSummary;
     use crate::game_engine::{Tournament, TournamentState, TournamentType};
     use crate::types::{

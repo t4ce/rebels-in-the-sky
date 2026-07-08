@@ -20,7 +20,7 @@ pub fn start_event_handler(
 ) -> JoinHandle<()> {
     tokio::spawn(async move {
         let poll_interval = time::Duration::from_millis(10); // 100Hz polling
-        let no_wait = std::time::Duration::ZERO;
+        let no_wait = core::time::Duration::ZERO;
         loop {
             select! {
                 _ = cancellation_token.cancelled() => {

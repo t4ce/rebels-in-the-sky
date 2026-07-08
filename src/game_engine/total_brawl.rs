@@ -2,7 +2,7 @@ use super::{action::*, game::Game, types::*};
 use crate::core::{constants::TirednessCost, player::Trait, Skill};
 use rand::{seq::SliceRandom, Rng};
 use rand_chacha::ChaCha8Rng;
-use alloc::collections::HashMap;
+use std::collections::HashMap;
 
 pub(crate) fn execute(
     input: &ActionOutput,

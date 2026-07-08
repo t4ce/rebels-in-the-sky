@@ -6,7 +6,7 @@ use crate::core::{
 };
 use rand::Rng;
 use rand_chacha::ChaCha8Rng;
-use alloc::collections::HashMap;
+use std::collections::HashMap;
 
 pub(crate) fn execute(
     input: &ActionOutput,

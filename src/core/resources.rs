@@ -1,5 +1,5 @@
+use core::{fmt::Display, hash::Hash};
 use serde_repr::{Deserialize_repr, Serialize_repr};
-use std::{fmt::Display, hash::Hash};
 use strum::EnumIter;
 
 #[derive(Debug, Serialize_repr, Deserialize_repr, Clone, Copy, PartialEq, Eq, Hash, EnumIter)]

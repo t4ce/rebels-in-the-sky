@@ -3,6 +3,7 @@ use crate::audio;
 use crate::core::world::World;
 use crate::types::AppResult;
 use crate::ui::*;
+use core::time::Duration;
 use ratatui::crossterm::cursor::{Hide, Show};
 use ratatui::crossterm::event::{DisableMouseCapture, EnableMouseCapture, KeyEvent, MouseEvent};
 use ratatui::crossterm::terminal::{
@@ -13,7 +14,7 @@ use ratatui::prelude::CrosstermBackend;
 use ratatui::{crossterm, Terminal, TerminalOptions, Viewport};
 use std::io::{self};
 use std::panic;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 const MAX_DRAW_FPS: u8 = 40;
 

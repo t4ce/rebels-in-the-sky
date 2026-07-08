@@ -21,6 +21,7 @@ use crate::{
     image::color_map::ColorMap,
     types::{AppResult, PlanetId, PlayerId},
 };
+use core::cmp::min;
 use core::fmt::Debug;
 use core::panic;
 use itertools::Itertools;
@@ -37,8 +38,7 @@ use ratatui::{
     widgets::{Clear, Paragraph, Wrap},
 };
 use ratatui_textarea::{CursorMove, TextArea};
-use core::cmp::min;
-use alloc::collections::HashMap;
+use std::collections::HashMap;
 use strum::IntoEnumIterator;
 use uuid::uuid;
 

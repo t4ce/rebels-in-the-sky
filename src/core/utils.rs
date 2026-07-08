@@ -1,4 +1,4 @@
-use alloc::collections::HashMap;
+use std::collections::HashMap;
 
 use super::{planet::Planet, skill::GameSkill, types::Population};
 use crate::store::ASSETS_DIR;
@@ -98,11 +98,11 @@ mod tests {
         let axis = (100.0, 50.0);
         let theta = 0.0;
         assert_eq!(super::ellipse_coords(axis, theta), (100.0, 0.0));
-        let theta = std::f32::consts::PI / 2.0;
+        let theta = core::f32::consts::PI / 2.0;
         assert_eq!(super::ellipse_coords(axis, theta), (0.0, 50.0));
-        let theta = std::f32::consts::PI;
+        let theta = core::f32::consts::PI;
         assert_eq!(super::ellipse_coords(axis, theta), (-100.0, 0.0));
-        let theta = 3.0 * std::f32::consts::PI / 2.0;
+        let theta = 3.0 * core::f32::consts::PI / 2.0;
         assert_eq!(super::ellipse_coords(axis, theta), (0.0, -50.0));
     }
 }

@@ -1,6 +1,6 @@
 use crate::app::AppEvent;
 use crate::types::{SystemTimeTick, Tick};
-use std::time::Duration;
+use core::time::Duration;
 use tokio::{select, sync::mpsc, task::JoinHandle, time};
 use tokio_util::sync::CancellationToken;
 

@@ -11,10 +11,10 @@ use crate::{
     },
     types::{AppResult, Tick},
 };
+use core::hash::Hash;
 use rand::seq::IteratorRandom;
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
-use core::hash::Hash;
 use strum::IntoEnumIterator;
 use strum_macros::{Display, EnumIter};
 

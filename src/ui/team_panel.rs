@@ -29,6 +29,7 @@ use crate::{
     types::{PlayerId, TeamId},
 };
 use core::fmt::Debug;
+use core::fmt::Display;
 use ratatui::crossterm;
 use ratatui::crossterm::event::KeyCode;
 use ratatui::layout::Margin;
@@ -39,8 +40,7 @@ use ratatui::{
     prelude::Rect,
     widgets::Paragraph,
 };
-use alloc::collections::HashMap;
-use core::fmt::Display;
+use std::collections::HashMap;
 use std::sync::{LazyLock, Mutex};
 
 const IMG_FRAME_WIDTH: u16 = 80;

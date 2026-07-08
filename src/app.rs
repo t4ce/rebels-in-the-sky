@@ -15,13 +15,14 @@ use crate::{
         PopupMessage, {UiScreen, UiState},
     },
 };
+use core::time::Duration;
 use libp2p::identity::Keypair;
 use libp2p::swarm::SwarmEvent;
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 use ratatui::crossterm;
 use ratatui::crossterm::event::{KeyCode, KeyModifiers};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 

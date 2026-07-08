@@ -17,11 +17,11 @@ use crate::{
     game_engine::{end_of_quarter, substitution, TournamentId},
     types::*,
 };
+use core::fmt::Debug;
 use itertools::Itertools;
 use rand::{seq::SliceRandom, Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
-use core::fmt::Debug;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct GameSummary {

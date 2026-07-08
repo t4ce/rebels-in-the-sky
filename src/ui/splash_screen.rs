@@ -12,6 +12,7 @@ use crate::store::world_file_data;
 use crate::types::{AppResult, SystemTimeTick, Tick};
 use crate::AudioPlayerState;
 use crate::{core::world::World, store::save_game_exists};
+use alloc::vec;
 use core::fmt::Debug;
 use rand::seq::SliceRandom;
 use rand::SeedableRng;
@@ -25,7 +26,6 @@ use ratatui::{
     prelude::{Constraint, Layout, Rect},
     widgets::{Paragraph, Wrap},
 };
-use alloc::vec;
 
 const TITLE_WIDTH: u16 = 71;
 const BUTTON_WIDTH: u16 = 36;

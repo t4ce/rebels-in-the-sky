@@ -5,15 +5,15 @@ use crate::{
         team::Team,
     },
     game_engine::{
+        Tournament, TournamentId, TournamentSummary,
         game::{Game, GameSummary},
         types::GameStatsMap,
-        Tournament, TournamentId, TournamentSummary,
     },
 };
 use anyhow::anyhow;
-use chrono::{prelude::DateTime, Datelike, Local, Timelike};
+use chrono::{Datelike, Local, Timelike, prelude::DateTime};
 use itertools::Itertools;
-use alloc::collections::HashMap;
+use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 // A Tick represents a unit of time in the game world.
@@ -249,7 +249,7 @@ impl SystemTimeTick for Tick {
     }
 
     fn as_system_time(&self) -> SystemTime {
-        UNIX_EPOCH + std::time::Duration::from_millis(*self)
+        UNIX_EPOCH + core::time::Duration::from_millis(*self)
     }
 
     fn formatted_as_date(&self) -> String {
@@ -296,8 +296,8 @@ impl SystemTimeTick for Tick {
 mod tests {
     use super::{AppResult, ResourceMap, StorableResourceMap};
     use crate::{
-        core::{resources::Resource, DAYS},
-        types::{SystemTimeTick, Tick, SECONDS},
+        core::{DAYS, resources::Resource},
+        types::{SECONDS, SystemTimeTick, Tick},
     };
     use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha8Rng;
@@ -364,7 +364,7 @@ mod tests {
         let rng = &mut rand::thread_rng();
         let start = Instant::now();
         for _ in 0..1_000_000 {
-            let _: f32 = rng.gen();
+            let _: f32 = rng.r#gen();
         }
 
         println!(
@@ -376,7 +376,7 @@ mod tests {
             .expect("thread RNG should seed ChaCha8Rng");
         let start = Instant::now();
         for _ in 0..1_000_000 {
-            let _: f32 = chacha_rng.gen();
+            let _: f32 = chacha_rng.r#gen();
         }
 
         println!(

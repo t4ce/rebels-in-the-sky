@@ -30,13 +30,13 @@ use crate::{
 };
 use anyhow::anyhow;
 use rand::{
-    seq::{IteratorRandom, SliceRandom},
     Rng, SeedableRng,
+    seq::{IteratorRandom, SliceRandom},
 };
 use rand_chacha::ChaCha8Rng;
 use ratatui::crossterm::event::{KeyCode, MouseEvent, MouseEventKind};
 use ratatui::layout::Rect;
-use alloc::collections::HashMap;
+use std::collections::HashMap;
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub enum UiCallback {
@@ -489,7 +489,7 @@ impl UiCallback {
                     return Err(anyhow!("Team is exploring"));
                 }
                 TeamLocation::OnSpaceAdventure { .. } => {
-                    return Err(anyhow!("Team is on a space adventure"))
+                    return Err(anyhow!("Team is on a space adventure"));
                 }
             };
 
@@ -875,7 +875,7 @@ impl UiCallback {
                 TeamLocation::Travelling { .. } => return Err(anyhow!("Team is travelling")),
                 TeamLocation::Exploring { .. } => return Err(anyhow!("Team is exploring")),
                 TeamLocation::OnSpaceAdventure { .. } => {
-                    return Err(anyhow!("Team is on a space adventure"))
+                    return Err(anyhow!("Team is on a space adventure"));
                 }
             };
 
@@ -951,7 +951,7 @@ impl UiCallback {
                 TeamLocation::Travelling { .. } => return Err(anyhow!("Team is travelling")),
                 TeamLocation::Exploring { .. } => return Err(anyhow!("Team is already exploring")),
                 TeamLocation::OnSpaceAdventure { .. } => {
-                    return Err(anyhow!("Team is on a space adventure"))
+                    return Err(anyhow!("Team is on a space adventure"));
                 }
             };
 
@@ -1732,7 +1732,7 @@ impl UiCallback {
                             .world
                             .planets
                             .iter()
-                            .filter(|(&id, p)| {
+                            .filter(|&(&id, p)| {
                                 id != from
                                     && id != to
                                     && p.total_population() > 0
@@ -1745,7 +1745,7 @@ impl UiCallback {
                             .world
                             .planets
                             .iter()
-                            .filter(|(&id, p)| {
+                            .filter(|&(&id, p)| {
                                 id != around && p.total_population() > 0 && p.peer_id.is_none()
                             })
                             .choose(rng)

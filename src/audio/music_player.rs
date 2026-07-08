@@ -2,6 +2,8 @@ use crate::app::AppEvent;
 use crate::store::ASSETS_DIR;
 use crate::types::AppResult;
 use anyhow::anyhow;
+use core::fmt::Debug;
+use core::time::Duration;
 use http_body_util::BodyExt;
 use http_body_util::Empty;
 use hyper::body::Bytes;
@@ -10,16 +12,13 @@ use hyper_rustls::HttpsConnectorBuilder;
 use hyper_util::client::legacy::Client;
 use hyper_util::rt::TokioExecutor;
 use serde::Deserialize;
-use alloc::collections::VecDeque;
-use core::fmt::Debug;
+use std::collections::VecDeque;
 use std::io::{Cursor, Read};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{
-    mpsc::{self, Receiver, Sender},
     Arc, Condvar, Mutex,
+    mpsc::{self, Receiver, Sender},
 };
-use std::thread;
-use std::time::Duration;
 use symphonia::core::audio::SampleBuffer;
 use symphonia::core::codecs::DecoderOptions;
 use symphonia::core::errors::Error as SymphoniaError;
@@ -27,7 +26,7 @@ use symphonia::core::formats::FormatOptions;
 use symphonia::core::io::{MediaSourceStream, ReadOnlySource};
 use symphonia::core::meta::MetadataOptions;
 use symphonia::core::probe::Hint;
-use tinyaudio::{run_output_device, OutputDeviceParameters};
+use tinyaudio::{OutputDeviceParameters, run_output_device};
 use tokio_util::sync::CancellationToken;
 use url::Url;
 
@@ -326,64 +325,62 @@ impl MusicPlayer {
         let (sender, receiver): (Sender<AudioCommand>, Receiver<AudioCommand>) = mpsc::channel();
         self.stream_status = StreamStatus::Ready { sender };
 
-        thread::Builder::new()
-            .name("audio-thread".into())
-            .spawn(move || {
-                let params = OutputDeviceParameters {
-                    sample_rate: OUTPUT_SAMPLE_RATE,
-                    channels_count: OUTPUT_CHANNELS,
-                    channel_sample_count: OUTPUT_CHANNEL_SAMPLE_COUNT,
-                };
+        tokio::task::spawn_blocking(move || {
+            let params = OutputDeviceParameters {
+                sample_rate: OUTPUT_SAMPLE_RATE,
+                channels_count: OUTPUT_CHANNELS,
+                channel_sample_count: OUTPUT_CHANNEL_SAMPLE_COUNT,
+            };
 
-                let mut device = match run_output_device(params, move |output| {
-                    output_buffer.fill_output(output, &output_is_playing, &output_has_buffer);
-                }) {
-                    Ok(device) => device,
-                    Err(err) => {
-                        log::error!("Failed to create tiny audio output device: {err}");
-                        return;
-                    }
-                };
+            let mut device = match run_output_device(params, move |output| {
+                output_buffer.fill_output(output, &output_is_playing, &output_has_buffer);
+            }) {
+                Ok(device) => device,
+                Err(err) => {
+                    log::error!("Failed to create tiny audio output device: {err}");
+                    return;
+                }
+            };
 
-                while let Ok(cmd) = receiver.recv() {
-                    if cancellation_token.is_cancelled() {
-                        log::info!("Music player loop shutting down.");
-                        break;
-                    }
-
-                    match cmd {
-                        AudioCommand::Append { data, generation } => {
-                            if stream_generation_clone.load(Ordering::Relaxed) == generation {
-                                spawn_decode_thread(
-                                    data,
-                                    generation,
-                                    radio_buffer.clone(),
-                                    is_buffering_clone.clone(),
-                                    has_buffer_clone.clone(),
-                                    is_playing_clone.clone(),
-                                    stream_generation_clone.clone(),
-                                );
-                            }
-                        }
-                        AudioCommand::Play => {
-                            if has_buffer_clone.load(Ordering::Relaxed) {
-                                is_playing_clone.store(true, Ordering::Relaxed);
-                            }
-                        }
-                        AudioCommand::Pause => {
-                            is_playing_clone.store(false, Ordering::Relaxed);
-                        }
-                        AudioCommand::Clear { generation } => {
-                            radio_buffer.clear(generation);
-                            has_buffer_clone.store(false, Ordering::Relaxed);
-                            is_playing_clone.store(false, Ordering::Relaxed);
-                            is_buffering_clone.store(false, Ordering::Relaxed);
-                        }
-                    }
+            while let Ok(cmd) = receiver.recv() {
+                if cancellation_token.is_cancelled() {
+                    log::info!("Music player loop shutting down.");
+                    break;
                 }
 
-                device.close();
-            })?;
+                match cmd {
+                    AudioCommand::Append { data, generation } => {
+                        if stream_generation_clone.load(Ordering::Relaxed) == generation {
+                            spawn_decode_thread(
+                                data,
+                                generation,
+                                radio_buffer.clone(),
+                                is_buffering_clone.clone(),
+                                has_buffer_clone.clone(),
+                                is_playing_clone.clone(),
+                                stream_generation_clone.clone(),
+                            );
+                        }
+                    }
+                    AudioCommand::Play => {
+                        if has_buffer_clone.load(Ordering::Relaxed) {
+                            is_playing_clone.store(true, Ordering::Relaxed);
+                        }
+                    }
+                    AudioCommand::Pause => {
+                        is_playing_clone.store(false, Ordering::Relaxed);
+                    }
+                    AudioCommand::Clear { generation } => {
+                        radio_buffer.clear(generation);
+                        has_buffer_clone.store(false, Ordering::Relaxed);
+                        is_playing_clone.store(false, Ordering::Relaxed);
+                        is_buffering_clone.store(false, Ordering::Relaxed);
+                    }
+                }
+            }
+
+            device.close();
+        });
 
         Ok(())
     }
@@ -528,29 +525,24 @@ fn spawn_decode_thread(
     is_playing: Arc<AtomicBool>,
     stream_generation: Arc<AtomicU64>,
 ) {
-    if let Err(err) = thread::Builder::new()
-        .name("audio-decode-thread".into())
-        .spawn(move || {
-            if let Err(err) = decode_radio_stream(
-                data,
-                generation,
-                &radio_buffer,
-                &is_buffering,
-                &has_buffer,
-                &is_playing,
-                &stream_generation,
-            ) {
-                if stream_generation.load(Ordering::Relaxed) == generation {
-                    log::error!("Failed to decode radio stream: {err}");
-                    is_buffering.store(false, Ordering::Relaxed);
-                    has_buffer.store(false, Ordering::Relaxed);
-                    is_playing.store(false, Ordering::Relaxed);
-                }
+    tokio::task::spawn_blocking(move || {
+        if let Err(err) = decode_radio_stream(
+            data,
+            generation,
+            &radio_buffer,
+            &is_buffering,
+            &has_buffer,
+            &is_playing,
+            &stream_generation,
+        ) {
+            if stream_generation.load(Ordering::Relaxed) == generation {
+                log::error!("Failed to decode radio stream: {err}");
+                is_buffering.store(false, Ordering::Relaxed);
+                has_buffer.store(false, Ordering::Relaxed);
+                is_playing.store(false, Ordering::Relaxed);
             }
-        })
-    {
-        log::error!("Failed to spawn audio decode thread: {err}");
-    }
+        }
+    });
 }
 
 fn decode_radio_stream(

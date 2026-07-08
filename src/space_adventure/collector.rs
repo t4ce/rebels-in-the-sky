@@ -2,7 +2,7 @@ use super::entity::Entity;
 use super::{collisions::HitBox, space_callback::SpaceCallback, traits::*};
 use glam::{I16Vec2, Vec2};
 use image::{Rgba, RgbaImage};
-use alloc::collections::HashMap;
+use std::collections::HashMap;
 
 const HIT_BOX_RADIUS: i16 = 40;
 // const MAGNET_ACCELERATION: f32 = 35.0;

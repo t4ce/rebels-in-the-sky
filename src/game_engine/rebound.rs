@@ -13,7 +13,7 @@ use crate::{
 };
 use rand::{seq::SliceRandom, Rng};
 use rand_chacha::ChaCha8Rng;
-use alloc::collections::HashMap;
+use std::collections::HashMap;
 
 const MIN_REBOUND_VALUE: i16 = 40;
 const REBOUND_POSITION_SCALING: f32 = 12.0;

@@ -9,16 +9,16 @@ use super::skill::{GameSkill, MAX_SKILL};
 use super::spaceship::Spaceship;
 use super::team::Team;
 use super::types::{PlayerLocation, TeamBonus, TeamLocation};
-use super::utils::{is_default, PLANET_DATA, TEAM_DATA};
+use super::utils::{PLANET_DATA, TEAM_DATA, is_default};
 use crate::core::{
-    AutonomousStrategy, GameResult, Honour, PlanetUpgradeTarget, Rated, RatedPlayers, Skill,
-    SpaceCove, SpaceCoveUpgradeTarget, Tavern, TournamentRegistrationState, Upgrade, MIN_SKILL,
+    AutonomousStrategy, GameResult, Honour, MIN_SKILL, PlanetUpgradeTarget, Rated, RatedPlayers,
+    Skill, SpaceCove, SpaceCoveUpgradeTarget, Tavern, TournamentRegistrationState, Upgrade,
 };
 use crate::game_engine::game::{Game, GameSummary};
 use crate::game_engine::tactic::Tactic;
 use crate::game_engine::types::{Possession, TeamInGame};
 use crate::game_engine::{
-    TournamentId, TournamentState, TournamentSummary, RECOVERING_TIREDNESS_PER_SHORT_TICK,
+    RECOVERING_TIREDNESS_PER_SHORT_TICK, TournamentId, TournamentState, TournamentSummary,
 };
 use crate::image::color_map::ColorMap;
 use crate::network::network_store_data::NetworkStoreData;
@@ -35,7 +35,7 @@ use rand::seq::{IteratorRandom, SliceRandom};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
-use alloc::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use strum::IntoEnumIterator;
 
 // const GAME_CLEANUP_TIME: Tick = 10 * SECONDS;
@@ -1070,7 +1070,7 @@ impl World {
         rng_seed = (rng_seed as Tick + starting_at) % (u64::MAX as Tick);
 
         let rng = &mut ChaCha8Rng::seed_from_u64(rng_seed);
-        let game_id = GameId::from_u128(rng.gen());
+        let game_id = GameId::from_u128(rng.r#gen());
 
         let planet = self.planets.get_or_err(&planet_id)?;
 
@@ -3117,7 +3117,7 @@ impl World {
             TeamLocation::Travelling { .. } => return Err(anyhow!("Team is travelling")),
             TeamLocation::Exploring { .. } => return Err(anyhow!("Team is exploring")),
             TeamLocation::OnSpaceAdventure { .. } => {
-                return Err(anyhow!("Team is on space adventure"))
+                return Err(anyhow!("Team is on space adventure"));
             }
         };
 
@@ -3287,21 +3287,22 @@ impl World {
 
 #[cfg(test)]
 mod test {
-    use std::{thread, time::Duration};
+    use core::time::Duration;
+    use std::thread;
 
     use super::{AppResult, World};
     use crate::{
         app::App,
         core::{
+            DEFAULT_PLANET_ID, MAX_SKILL, MIN_PLAYERS_PER_GAME, PORTAL_TRAVEL_DURATION,
+            RatedPlayers, SPUGNA_DRUNKENNESS_ON_GETTING_DRUNK,
             player::Trait,
             resources::Resource,
             role::CrewRole,
             skill::Rated,
             types::TeamLocation,
             utils::PLANET_DATA,
-            world::{TickInterval, AU, EXPLORATION_DURATION},
-            RatedPlayers, DEFAULT_PLANET_ID, MAX_SKILL, MIN_PLAYERS_PER_GAME,
-            PORTAL_TRAVEL_DURATION, SPUGNA_DRUNKENNESS_ON_GETTING_DRUNK,
+            world::{AU, EXPLORATION_DURATION, TickInterval},
         },
         game_engine::types::TeamInGame,
         types::{HashMapWithResult, StorableResourceMap, SystemTimeTick, Tick},
@@ -3319,11 +3320,11 @@ mod test {
         let mut v1 = vec![];
         let mut v2 = vec![];
         for _ in 0..10 {
-            v1.push(rng.gen::<u8>());
+            v1.push(rng.r#gen::<u8>());
         }
         let rng = &mut ChaCha8Rng::seed_from_u64(seed);
         for _ in 0..10 {
-            v2.push(rng.gen::<u8>());
+            v2.push(rng.r#gen::<u8>());
         }
         assert_eq!(v1, v2);
     }

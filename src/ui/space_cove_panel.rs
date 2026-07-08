@@ -19,6 +19,7 @@ use crate::ui::widgets::{
 use crate::ui::{constants::*, ui_key};
 use crate::{core::*, types::AppResult};
 use core::fmt::Debug;
+use core::fmt::{self, Display};
 use image::RgbaImage;
 use itertools::Itertools;
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
@@ -27,8 +28,7 @@ use ratatui::prelude::Rect;
 use ratatui::style::Stylize;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
-use alloc::collections::HashSet;
-use core::fmt::{self, Display};
+use std::collections::HashSet;
 
 const BUILDINGS: [SpaceCoveUpgradeTarget; 4] = [
     SpaceCoveUpgradeTarget::TeleportationPad,

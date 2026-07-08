@@ -9,12 +9,12 @@ use crate::{
     image::color_map::SkinColorMap,
     types::{AppResult, HashMapWithResult, PlanetId, SystemTimeTick, TeamId, Tick},
 };
+use core::fmt::Display;
 use rand::distributions::{Distribution, WeightedIndex};
 use rand::{seq::IteratorRandom, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
-use core::fmt::Display;
 use strum::IntoEnumIterator;
 use strum::{Display, FromRepr};
 use strum_macros::EnumIter;

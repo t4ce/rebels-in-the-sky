@@ -2,8 +2,8 @@ use super::constants::HOURS;
 use super::resources::Resource;
 use crate::core::{UpgradeableElement, DAYS};
 use crate::types::Tick;
-use serde_repr::{Deserialize_repr, Serialize_repr};
 use core::fmt::{self, Display};
+use serde_repr::{Deserialize_repr, Serialize_repr};
 use strum_macros::EnumIter;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumIter, Serialize_repr, Deserialize_repr)]

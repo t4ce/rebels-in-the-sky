@@ -4,16 +4,14 @@ use super::{
     Body, Collider, ColliderType, ControllableSpaceship, ResourceFragment,
 };
 use crate::types::AppResult;
+use core::fmt::Debug;
 use glam::{I16Vec2, Vec2};
 use image::{Pixel, Rgba};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
-use std::{
-    collections::{
-        hash_map::{Iter, Keys, Values},
-        HashMap,
-    },
-    fmt::Debug,
+use std::collections::{
+    hash_map::{Iter, Keys, Values},
+    HashMap,
 };
 
 const SPACESHIP_COLLISION_DAMAGE: f32 = 5.0;

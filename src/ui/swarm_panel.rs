@@ -34,7 +34,7 @@ use ratatui::{
     widgets::{List, ListItem},
 };
 use ratatui_textarea::{CursorMove, TextArea};
-use alloc::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap};
 use strum_macros::Display;
 
 const EVENT_DUPLICATE_DELAY: Tick = 2 * MINUTES;

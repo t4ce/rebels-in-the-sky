@@ -7,9 +7,9 @@ use super::{
 use super::{collisions::HitBox, space_callback::SpaceCallback, visual_effects::VisualEffect};
 use crate::types::AppResult;
 use anyhow::anyhow;
+use core::fmt::Debug;
 use glam::I16Vec2;
 use image::RgbaImage;
-use core::fmt::Debug;
 use strum::Display;
 
 #[derive(Debug, Display)]

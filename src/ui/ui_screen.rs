@@ -24,6 +24,7 @@ use crate::types::{AppResult, SystemTimeTick};
 use crate::ui::space_cove_panel::SpaceCovePanel;
 #[cfg(feature = "audio")]
 use crate::AudioPlayerState;
+use alloc::vec;
 use anyhow::Error;
 use core::fmt::Debug;
 use itertools::Itertools;
@@ -38,10 +39,9 @@ use ratatui::{
     Frame,
 };
 use ratatui_textarea::{CursorMove, TextArea};
-use alloc::collections::HashMap;
+use std::collections::HashMap;
 use std::sync::LazyLock;
 use std::time::Instant;
-use alloc::vec;
 use strum_macros::Display;
 
 const MAX_POPUP_MESSAGES: usize = 8;

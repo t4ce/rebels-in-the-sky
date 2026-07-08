@@ -58,12 +58,12 @@ impl<'a> HoverTextLine<'a> {
     }
 
     /// Returns an iterator over the spans of this line.
-    pub fn iter(&'_ self) -> std::slice::Iter<'_, HoverTextSpan<'a>> {
+    pub fn iter(&'_ self) -> core::slice::Iter<'_, HoverTextSpan<'a>> {
         self.spans.iter()
     }
 
     /// Returns a mutable iterator over the spans of this line.
-    pub fn iter_mut(&'_ mut self) -> std::slice::IterMut<'_, HoverTextSpan<'a>> {
+    pub fn iter_mut(&'_ mut self) -> core::slice::IterMut<'_, HoverTextSpan<'a>> {
         self.spans.iter_mut()
     }
 }
@@ -79,7 +79,7 @@ impl<'a> IntoIterator for HoverTextLine<'a> {
 
 impl<'a> IntoIterator for &'a HoverTextLine<'a> {
     type Item = &'a HoverTextSpan<'a>;
-    type IntoIter = std::slice::Iter<'a, HoverTextSpan<'a>>;
+    type IntoIter = core::slice::Iter<'a, HoverTextSpan<'a>>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
@@ -88,7 +88,7 @@ impl<'a> IntoIterator for &'a HoverTextLine<'a> {
 
 impl<'a> IntoIterator for &'a mut HoverTextLine<'a> {
     type Item = &'a mut HoverTextSpan<'a>;
-    type IntoIter = std::slice::IterMut<'a, HoverTextSpan<'a>>;
+    type IntoIter = core::slice::IterMut<'a, HoverTextSpan<'a>>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter_mut()

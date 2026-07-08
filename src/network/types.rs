@@ -14,11 +14,11 @@ use crate::{
     types::{AppResult, GameId, TeamId},
 };
 use anyhow::anyhow;
+use core::fmt::Debug;
 use itertools::Itertools;
 use libp2p::PeerId;
 use serde::{Deserialize, Serialize};
-use alloc::collections::HashMap;
-use core::fmt::Debug;
+use std::collections::HashMap;
 use strum_macros::Display;
 
 #[derive(Debug, Display, Serialize, Deserialize, Clone, PartialEq)]

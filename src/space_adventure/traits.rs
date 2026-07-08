@@ -1,8 +1,9 @@
 use super::{collisions::HitBox, space_callback::SpaceCallback, visual_effects::VisualEffect};
 use crate::{core::resources::Resource, types::ResourceMap};
+use core::fmt::Debug;
 use glam::I16Vec2;
 use image::{Rgba, RgbaImage};
-use std::{collections::HashMap, fmt::Debug};
+use std::collections::HashMap;
 
 pub type VisualEffectMap = HashMap<VisualEffect, f32>;
 

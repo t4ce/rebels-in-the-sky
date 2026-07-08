@@ -12,7 +12,7 @@ use crate::core::{
 };
 use rand::{seq::SliceRandom, Rng};
 use rand_chacha::ChaCha8Rng;
-use alloc::collections::HashMap;
+use std::collections::HashMap;
 
 pub(crate) fn execute_close_shot(
     input: &ActionOutput,

@@ -579,7 +579,7 @@ mod tests {
                 let active_games = tournament.active_games(&games);
                 let game_summaries = tournament.past_game_summaries(&past_games);
 
-                if let Ok(true) = event::poll(std::time::Duration::from_millis(2)) {
+                if let Ok(true) = event::poll(core::time::Duration::from_millis(2)) {
                     if matches!(event::read().unwrap(), Event::Key(_)) {
                         break;
                     }

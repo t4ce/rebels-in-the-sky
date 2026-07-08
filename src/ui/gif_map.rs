@@ -21,7 +21,7 @@ use anyhow::anyhow;
 use image::{imageops::resize, GenericImageView, Rgba, RgbaImage};
 use imageproc::geometric_transformations::{rotate_about_center, Interpolation};
 use itertools::Itertools;
-use alloc::collections::HashMap;
+use std::collections::HashMap;
 use std::sync::LazyLock;
 
 const MAX_GIF_WIDTH: u32 = 160;
@@ -333,10 +333,10 @@ impl GifMap {
                 // Satellite img moves along an ellipse
                 // Can divide safely because if we enter the loop => planet.satellites.len() > 0.
                 let theta_0 =
-                    idx as f32 * 2.0 * std::f32::consts::PI / planet.satellites.len() as f32;
+                    idx as f32 * 2.0 * core::f32::consts::PI / planet.satellites.len() as f32;
 
                 let theta = theta_0
-                    + (tick as f32 * 2.0 * std::f32::consts::PI)
+                    + (tick as f32 * 2.0 * core::f32::consts::PI)
                         / satellite.revolution_period as f32;
 
                 let (mut x_planet, mut y_planet) = ellipse_coords(satellite.axis, theta);
@@ -487,7 +487,7 @@ impl GifMap {
             .map(|img| {
                 rotate_about_center(
                     img,
-                    std::f32::consts::PI / 2.0,
+                    core::f32::consts::PI / 2.0,
                     Interpolation::Nearest,
                     Rgba([255, 0, 0, 0]),
                 )
@@ -515,8 +515,8 @@ impl GifMap {
             base.copy_non_trasparent_from(&STAR_LAYERS[0], idx as u32, 20)?;
 
             let y = ((star_layer_height - img.height()) as f32 / 2.0
-                + (std::f32::consts::PI * idx as f32 / 17.0).cos()
-                + (std::f32::consts::PI * idx as f32 / 333.0).sin()) as u32;
+                + (core::f32::consts::PI * idx as f32 / 17.0).cos()
+                + (core::f32::consts::PI * idx as f32 / 333.0).sin()) as u32;
             base.copy_non_trasparent_from(img, idx as u32, y)?;
 
             let view = base.view(idx as u32, 0, base.width() - idx as u32, star_layer_height);
@@ -548,7 +548,7 @@ impl GifMap {
             .map(|img| {
                 rotate_about_center(
                     img,
-                    std::f32::consts::PI / 2.0,
+                    core::f32::consts::PI / 2.0,
                     Interpolation::Nearest,
                     Rgba([255, 0, 0, 0]),
                 )

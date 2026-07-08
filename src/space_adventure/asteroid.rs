@@ -14,7 +14,7 @@ use rand::seq::IteratorRandom;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use serde_repr::{Deserialize_repr, Serialize_repr};
-use alloc::collections::HashMap;
+use std::collections::HashMap;
 use std::sync::LazyLock;
 use strum::{Display, EnumIter, IntoEnumIterator};
 

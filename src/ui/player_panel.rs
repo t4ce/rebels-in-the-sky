@@ -22,6 +22,7 @@ use crate::{
     types::{PlayerId, TeamId},
 };
 use core::fmt::Debug;
+use core::fmt::Display;
 use ratatui::crossterm;
 use ratatui::crossterm::event::KeyCode;
 use ratatui::layout::Margin;
@@ -31,7 +32,6 @@ use ratatui::{
     prelude::Rect,
     widgets::Paragraph,
 };
-use core::fmt::Display;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub enum PlayerView {

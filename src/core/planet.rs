@@ -9,6 +9,7 @@ use crate::{
     types::{PlanetId, TeamId},
 };
 use anyhow::anyhow;
+use core::hash::{Hash, Hasher};
 use libp2p::PeerId;
 use rand::distributions::WeightedIndex;
 use rand::prelude::Distribution;
@@ -17,11 +18,8 @@ use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
-use alloc::collections::HashSet;
-use std::{
-    collections::HashMap,
-    hash::{DefaultHasher, Hash, Hasher},
-};
+use std::collections::hash_map::DefaultHasher;
+use std::collections::{HashMap, HashSet};
 use strum_macros::{Display, EnumIter};
 
 const TRADE_DELTA_SCARCITY: f32 = 3.25;

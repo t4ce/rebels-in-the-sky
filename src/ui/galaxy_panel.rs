@@ -16,6 +16,8 @@ use crate::{
     core::*,
     types::{PlanetId, PlanetMap},
 };
+use alloc::vec;
+use core::cmp::min;
 use core::fmt::Debug;
 use itertools::Itertools;
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
@@ -30,7 +32,6 @@ use ratatui::{
     text::Span,
     widgets::{Clear, Paragraph},
 };
-use std::{cmp::min, vec};
 
 const TICKS_PER_REVOLUTION: usize = 1;
 
@@ -564,10 +565,10 @@ impl GalaxyPanel {
                 }
                 .size() as u16;
 
-                let theta_0 = (index - 1) as f32 * 2.0 * std::f32::consts::PI
+                let theta_0 = (index - 1) as f32 * 2.0 * core::f32::consts::PI
                     / central_planet.satellites.len() as f32;
                 let theta = theta_0
-                    + ((self.tick / TICKS_PER_REVOLUTION) as f32 * 2.0 * std::f32::consts::PI)
+                    + ((self.tick / TICKS_PER_REVOLUTION) as f32 * 2.0 * core::f32::consts::PI)
                         / satellite.revolution_period as f32;
                 let (x_planet, y_planet) = ellipse_coords(satellite.axis, theta);
 

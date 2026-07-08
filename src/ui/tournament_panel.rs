@@ -15,6 +15,7 @@ use crate::types::{AppResult, SystemTimeTick, Tick};
 use crate::ui::tournament_brackets_lines::{current_round, number_of_rounds};
 use crate::ui::{tournament_brackets_lines, ui_key};
 use core::fmt::Debug;
+use core::fmt::Display;
 use itertools::Itertools;
 use ratatui::crossterm;
 use ratatui::crossterm::event::KeyCode;
@@ -26,7 +27,6 @@ use ratatui::{
     prelude::Rect,
     widgets::Paragraph,
 };
-use core::fmt::Display;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub enum TournamentView {

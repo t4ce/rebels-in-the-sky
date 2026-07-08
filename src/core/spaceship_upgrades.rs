@@ -3,8 +3,8 @@ use crate::{
     core::{spaceship::*, spaceship_components::*, types::UpgradeableElement},
     types::Tick,
 };
+use core::{fmt::Display, hash::Hash};
 use serde::{Deserialize, Serialize};
-use std::{fmt::Display, hash::Hash};
 use strum_macros::EnumIter;
 
 const REPAIR_BASE_COST: u32 = 425;

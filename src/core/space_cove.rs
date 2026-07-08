@@ -2,14 +2,14 @@ use super::resources::Resource;
 use super::utils::is_default;
 use crate::core::{Population, Upgrade, UpgradeableElement, DAYS, MAX_TAVERN_POPULATION, WEEKS};
 use crate::types::{PlanetId, PlayerId, ResourceMap, StorableResourceMap, Tick};
+use core::fmt::{self, Display};
 use rand::distributions::WeightedIndex;
 use rand::prelude::Distribution;
 use rand::Rng;
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
-use alloc::collections::{HashMap, HashSet};
-use core::fmt::{self, Display};
+use std::collections::{HashMap, HashSet};
 use strum::Display;
 use strum_macros::EnumIter;
 

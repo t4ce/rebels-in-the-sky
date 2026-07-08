@@ -1,12 +1,12 @@
 use super::constants::*;
 use crate::core::UpgradeableElement;
-use rand::seq::IteratorRandom;
-use rand_chacha::ChaCha8Rng;
-use serde_repr::{Deserialize_repr, Serialize_repr};
-use std::{
+use core::{
     fmt::{Debug, Display},
     hash::Hash,
 };
+use rand::seq::IteratorRandom;
+use rand_chacha::ChaCha8Rng;
+use serde_repr::{Deserialize_repr, Serialize_repr};
 use strum::IntoEnumIterator;
 use strum_macros::{Display, EnumIter};
 

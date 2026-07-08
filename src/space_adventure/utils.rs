@@ -6,7 +6,7 @@ use image::imageops::crop_imm;
 use image::Rgba;
 use image::{buffer::ConvertBuffer, GrayImage, RgbaImage};
 use imageproc::contours::{find_contours, BorderType};
-use alloc::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 
 pub type EntityMap = HashMap<usize, Entity>;
 

@@ -17,13 +17,14 @@ use crate::{
 use anyhow::anyhow;
 use itertools::Itertools;
 
+use core::ops::Not;
 use libp2p::PeerId;
 use rand::Rng;
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
+use std::collections::HashMap;
 use std::sync::LazyLock;
-use std::{collections::HashMap, ops::Not};
 use strum::Display;
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]

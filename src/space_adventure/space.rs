@@ -27,16 +27,15 @@ use crate::{
     ui::{PopupMessage, UiCallback},
 };
 use anyhow::anyhow;
+use core::time::Duration;
 use glam::Vec2;
 use image::{imageops::crop_imm, Rgb};
 use image::{Rgba, RgbaImage};
 use itertools::Itertools;
 use rand::{seq::IteratorRandom, Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
-use std::{
-    collections::HashMap,
-    time::{Duration, Instant},
-};
+use std::collections::HashMap;
+use std::time::Instant;
 use strum::{Display, IntoEnumIterator};
 
 #[derive(Debug, Display, Clone, Copy, PartialEq)]

@@ -8,7 +8,7 @@ use crate::types::{AppResult, TeamId};
 use libp2p::gossipsub::IdentTopic;
 use libp2p::identity::Keypair;
 use libp2p::{gossipsub, identify, swarm::SwarmEvent};
-use alloc::collections::HashMap;
+use std::collections::HashMap;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 

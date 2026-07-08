@@ -6,15 +6,13 @@ use crate::{
     types::*,
 };
 use anyhow::anyhow;
+use core::cmp::min;
 use itertools::Itertools;
 use libp2p::PeerId;
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
-use std::{
-    cmp::min,
-    collections::{HashMap, HashSet},
-};
+use std::collections::{HashMap, HashSet};
 use strum::Display;
 
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]

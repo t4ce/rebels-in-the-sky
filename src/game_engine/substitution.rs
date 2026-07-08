@@ -18,7 +18,7 @@ use crate::{
 use itertools::Itertools;
 use rand::{seq::SliceRandom, Rng};
 use rand_chacha::ChaCha8Rng;
-use alloc::collections::HashMap;
+use std::collections::HashMap;
 
 fn get_subs<'a>(
     players: &[&'a Player],

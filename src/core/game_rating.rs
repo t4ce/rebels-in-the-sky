@@ -1,4 +1,4 @@
-use alloc::collections::HashMap;
+use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};

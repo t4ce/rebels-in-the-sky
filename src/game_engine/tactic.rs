@@ -1,9 +1,9 @@
 use super::action::Action;
+use core::fmt::Display;
 use rand::distributions::{Distribution, WeightedIndex};
 use rand::seq::IteratorRandom;
 use rand_chacha::ChaCha8Rng;
 use serde_repr::{Deserialize_repr, Serialize_repr};
-use core::fmt::Display;
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
