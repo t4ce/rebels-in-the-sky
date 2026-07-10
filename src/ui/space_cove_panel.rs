@@ -905,7 +905,7 @@ impl Screen for SpaceCovePanel {
                         .visiting_team_ids
                         .iter()
                         .take(4)
-                        .filter(|id| world.teams.contains_key(id))
+                        .filter(|id| world.teams.contains_key(*id))
                         .map(|id| world.teams.get(id).unwrap())
                         .collect_vec();
                     self.cove_image_widgets = Self::build_image_widgets(&teams)?;

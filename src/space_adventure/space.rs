@@ -491,7 +491,7 @@ impl SpaceAdventure {
                         .expect("Entity should exist.");
                     for other_id in layer_entities.iter().skip(idx + 1) {
                         let other = self.entities[layer]
-                            .get(other_id)
+                            .get(*other_id)
                             .expect("Entity should exist.");
                         callbacks.append(&mut resolve_collision_between(entity, other, deltatime)?);
                     }

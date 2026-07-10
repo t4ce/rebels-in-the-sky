@@ -9,9 +9,15 @@ use glam::{I16Vec2, Vec2};
 use image::{Pixel, Rgba};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
+#[cfg(not(any(target_os = "trueos", target_os = "zkvm")))]
 use std::collections::{
     hash_map::{Iter, Keys, Values},
     HashMap,
+};
+#[cfg(any(target_os = "trueos", target_os = "zkvm"))]
+use trueos::collections::{
+    HashMap,
+    hash_map::{Iter, Keys, Values},
 };
 
 const SPACESHIP_COLLISION_DAMAGE: f32 = 5.0;

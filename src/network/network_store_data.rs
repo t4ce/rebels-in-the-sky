@@ -147,8 +147,8 @@ impl NetworkStoreData {
         self.peer_addresses
             .iter()
             .sorted_by(|(a, _), (b, _)| {
-                let a_timestamp = self.peer_last_connection.get(a).unwrap_or(&0);
-                let b_timestamp = self.peer_last_connection.get(b).unwrap_or(&0);
+                let a_timestamp = self.peer_last_connection.get(*a).unwrap_or(&0);
+                let b_timestamp = self.peer_last_connection.get(*b).unwrap_or(&0);
                 b_timestamp.cmp(a_timestamp)
             })
             .take(RANDOM_PEER_ADDRESSES_LENGTH)
