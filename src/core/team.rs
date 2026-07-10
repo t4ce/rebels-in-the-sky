@@ -135,7 +135,7 @@ impl Team {
         let mut resources = HashMap::new();
         resources.insert(Resource::SATOSHI, INITIAL_TEAM_BALANCE);
         Self {
-            id: TeamId::new_v4(),
+            id: crate::core::utils::uuid_from_rng(rng),
             creation_time: Tick::now(),
             jersey,
             spaceship: Spaceship::random(rng).with_color_map(ship_color),

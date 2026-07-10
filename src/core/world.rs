@@ -114,16 +114,45 @@ impl World {
     }
 
     pub fn initialize(&mut self, generate_local_world: bool) -> AppResult<()> {
+        crate::logging::new_game_probe(format_args!(
+            "world.initialize begin seed={} local_world={generate_local_world}",
+            self.seed
+        ));
         let rng = &mut ChaCha8Rng::seed_from_u64(self.seed);
-        for planet in PLANET_DATA.iter() {
+        crate::logging::new_game_probe(format_args!("world.initialize rng seeded"));
+        for (index, planet) in PLANET_DATA.iter().enumerate() {
+            crate::logging::new_game_probe(format_args!(
+                "world.initialize planet {}/{} begin name={} population={}",
+                index + 1,
+                PLANET_DATA.len(),
+                planet.name,
+                planet.total_population()
+            ));
             self.populate_planet(rng, planet, None)?;
+            crate::logging::new_game_probe(format_args!(
+                "world.initialize planet {}/{} done players={}",
+                index + 1,
+                PLANET_DATA.len(),
+                self.players.len()
+            ));
         }
 
         if generate_local_world {
+            crate::logging::new_game_probe(format_args!(
+                "world.initialize local teams begin count={}",
+                TEAM_DATA.len()
+            ));
             self.generate_local_world(rng)?;
+            crate::logging::new_game_probe(format_args!(
+                "world.initialize local teams done teams={} players={}",
+                self.teams.len(),
+                self.players.len()
+            ));
         }
 
+        crate::logging::new_game_probe(format_args!("world.initialize clock begin"));
         let now = Tick::now();
+        crate::logging::new_game_probe(format_args!("world.initialize clock done tick={now}"));
 
         self.last_tick_min_interval = now;
         self.last_tick_short_interval = now;
@@ -132,6 +161,7 @@ impl World {
         self.last_tick_short_interval -= self.last_tick_short_interval % TickInterval::SHORT;
         self.last_tick_medium_interval = now;
         self.last_tick_long_interval = now;
+        crate::logging::new_game_probe(format_args!("world.initialize done"));
         Ok(())
     }
 
@@ -178,7 +208,19 @@ impl World {
             let (team_name, ship_name) = team_data[idx].clone();
             // Assign 2 teams to each planet
             let home_planet_id = home_planet_ids[(idx / 2) % home_planet_ids.len()];
+            crate::logging::new_game_probe(format_args!(
+                "world.initialize team {}/{} begin name={team_name}",
+                idx + 1,
+                team_data.len()
+            ));
             self.generate_random_team(rng, home_planet_id, team_name, ship_name)?;
+            crate::logging::new_game_probe(format_args!(
+                "world.initialize team {}/{} done teams={} players={}",
+                idx + 1,
+                team_data.len(),
+                self.teams.len(),
+                self.players.len()
+            ));
         }
         Ok(())
     }
@@ -311,10 +353,11 @@ impl World {
         base_level: Option<Skill>,
         extra_potential: Option<Skill>,
     ) -> AppResult<PlayerId> {
-        let mut build_player = Player::default()
-            .with_position(position)
-            .with_population(home_planet.random_population(rng).unwrap_or_default())
-            .with_current_location_on_planet(home_planet.id);
+        let mut build_player =
+            Player::default_with_id(crate::core::utils::uuid_from_rng(rng))
+                .with_position(position)
+                .with_population(home_planet.random_population(rng).unwrap_or_default())
+                .with_current_location_on_planet(home_planet.id);
 
         if let Some(v) = base_level {
             build_player = build_player.with_base_level(v);

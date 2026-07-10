@@ -361,12 +361,16 @@ impl NetworkHandler {
 
         self.swarm_status = SwarmStatus::Ready { sender };
         let handle = tokio::spawn(async move {
-            let mut swarm =
-                if let Ok(swarm) = Self::new_swarm(local_keypair, tcp_port, use_ipv4, use_ipv6) {
-                    swarm
-                } else {
+            crate::logging::multi_rt_probe(format_args!("network task entered"));
+            crate::logging::multi_rt_probe(format_args!("new_swarm begin"));
+            let mut swarm = match Self::new_swarm(local_keypair, tcp_port, use_ipv4, use_ipv6) {
+                Ok(swarm) => swarm,
+                Err(error) => {
+                    crate::logging::multi_rt_probe(format_args!("new_swarm failed: {error}"));
                     return;
-                };
+                }
+            };
+            crate::logging::multi_rt_probe(format_args!("new_swarm done"));
 
             assert_eq!(own_peer_id, *swarm.local_peer_id());
             let mut kad_bootstrapped = false;

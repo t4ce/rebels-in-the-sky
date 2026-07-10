@@ -2,8 +2,11 @@ use std::collections::HashMap;
 
 use super::{planet::Planet, skill::GameSkill, types::Population};
 use crate::store::ASSETS_DIR;
+use rand::RngCore;
+use rand_chacha::ChaCha8Rng;
 use serde::Deserialize;
 use std::sync::LazyLock;
+use uuid::{Builder, Uuid};
 
 #[derive(Deserialize)]
 pub struct PlayerData {
@@ -26,6 +29,12 @@ pub fn skill_linear_interpolation(base_skill: f32, mod_skill: f32, coords: [f32;
         modifier = linear_interpolation(mod_skill, coords);
     }
     (base_skill * modifier).bound()
+}
+
+pub fn uuid_from_rng(rng: &mut ChaCha8Rng) -> Uuid {
+    let mut bytes = [0u8; 16];
+    rng.fill_bytes(&mut bytes);
+    Builder::from_random_bytes(bytes).into_uuid()
 }
 
 pub static PLAYER_DATA: LazyLock<HashMap<Population, PlayerData>> = LazyLock::new(|| {

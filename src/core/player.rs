@@ -72,10 +72,10 @@ pub struct Player {
     build_data: PlayerBuildData, // Intermediate state used to build the random player. Not serialized
 }
 
-impl Default for Player {
-    fn default() -> Self {
+impl Player {
+    pub(crate) fn default_with_id(id: PlayerId) -> Self {
         Player {
-            id: PlayerId::new_v4(),
+            id,
             peer_id: None,
             version: 0,
             info: InfoStats::default(),
@@ -102,6 +102,12 @@ impl Default for Player {
             historical_stats: GameStats::default(),
             build_data: PlayerBuildData::default(),
         }
+    }
+}
+
+impl Default for Player {
+    fn default() -> Self {
+        Self::default_with_id(PlayerId::new_v4())
     }
 }
 

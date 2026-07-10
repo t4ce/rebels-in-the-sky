@@ -1,5 +1,10 @@
 use log::{LevelFilter, Metadata, Record};
 
+#[cfg(any(target_os = "trueos", target_os = "zkvm"))]
+use alloc::string::String;
+#[cfg(any(target_os = "trueos", target_os = "zkvm"))]
+use core::fmt::Write as _;
+
 #[cfg(not(any(target_os = "trueos", target_os = "zkvm")))]
 use crate::store::store_path;
 #[cfg(not(any(target_os = "trueos", target_os = "zkvm")))]
@@ -23,6 +28,32 @@ pub fn init(level: LevelFilter) -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+pub fn new_game_probe(args: core::fmt::Arguments<'_>) {
+    #[cfg(any(target_os = "trueos", target_os = "zkvm"))]
+    {
+        let mut line = String::from("[rebels-new-game-probe:INFO] ");
+        let _ = line.write_fmt(args);
+        line.push('\n');
+        trueos::logl::log(trueos::logl::level::INFO, line.as_str());
+    }
+
+    #[cfg(not(any(target_os = "trueos", target_os = "zkvm")))]
+    log::info!("[rebels-new-game-probe:INFO] {args}");
+}
+
+pub fn multi_rt_probe(args: core::fmt::Arguments<'_>) {
+    #[cfg(any(target_os = "trueos", target_os = "zkvm"))]
+    {
+        let mut line = String::from("[rebels-multi-rt-probe:INFO] ");
+        let _ = line.write_fmt(args);
+        line.push('\n');
+        trueos::logl::log(trueos::logl::level::INFO, line.as_str());
+    }
+
+    #[cfg(not(any(target_os = "trueos", target_os = "zkvm")))]
+    log::info!("[rebels-multi-rt-probe:INFO] {args}");
 }
 
 #[cfg(any(target_os = "trueos", target_os = "zkvm"))]

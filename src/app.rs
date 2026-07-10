@@ -56,6 +56,7 @@ pub struct App {
     pub network_handler: NetworkHandler,
     new_version_notified: bool,
     cancellation_token: CancellationToken,
+    new_game_probe_pending: bool,
 }
 
 impl App {
@@ -224,6 +225,7 @@ impl App {
             network_handler,
             new_version_notified: false,
             cancellation_token: CancellationToken::new(),
+            new_game_probe_pending: false,
         })
     }
 
@@ -265,6 +267,7 @@ impl App {
             }
 
             if !network_started && self.world.has_own_team() {
+                crate::logging::multi_rt_probe(format_args!("network startup gate entered"));
                 if let Some(tcp_port) = self.args.network_port() {
                     // If world keypair bytes are set --> restore the network handler keypair
                     if let Some(bytes) = self.world.network_store_data.keypair.as_ref() {
@@ -277,11 +280,20 @@ impl App {
                     }
                     // Else do the opposite: store the new random keypair in the world
                     else {
+                        crate::logging::multi_rt_probe(format_args!(
+                            "network keypair persist begin"
+                        ));
                         self.world
                             .network_store_data
                             .set_keypair(self.network_handler.keypair_bytes()?);
-                        log::info!("Network keypair persisted.")
+                        log::info!("Network keypair persisted.");
+                        crate::logging::multi_rt_probe(format_args!(
+                            "network keypair persist done"
+                        ));
                     }
+                    crate::logging::multi_rt_probe(format_args!(
+                        "network task submit begin port={tcp_port}"
+                    ));
                     self.network_handler.start_polling_events(
                         self.get_event_sender(),
                         self.get_cancellation_token(),
@@ -289,12 +301,14 @@ impl App {
                         self.args.use_ipv4(),
                         self.args.use_ipv6(),
                     );
+                    crate::logging::multi_rt_probe(format_args!("network task submit done"));
 
                     self.ui
                         .swarm_panel
                         .add_peer_id(*self.network_handler.own_peer_id(), self.world.own_team_id);
                 }
                 network_started = true;
+                crate::logging::multi_rt_probe(format_args!("network startup gate done"));
             }
 
             if let Some(duration_in_seconds) = self.args.auto_quit_after {
@@ -319,8 +333,22 @@ impl App {
                     AppEvent::TerminalEvent(terminal_event) => {
                         match terminal_event {
                             TerminalEvent::Key(key_event) => {
-                                if self.should_draw_key_events(key_event)? {
+                                let was_new_team = self.ui.state == UiState::NewTeam;
+                                let should_draw = self.should_draw_key_events(key_event)?;
+                                let entered_new_team =
+                                    !was_new_team && self.ui.state == UiState::NewTeam;
+                                if entered_new_team {
+                                    crate::logging::new_game_probe(format_args!(
+                                        "first NewTeam draw begin"
+                                    ));
+                                }
+                                if should_draw {
                                     self.draw(&mut tui).await;
+                                }
+                                if entered_new_team {
+                                    crate::logging::new_game_probe(format_args!(
+                                        "first NewTeam draw done"
+                                    ));
                                 }
                             }
                             TerminalEvent::Mouse(mouse_event) => {
@@ -385,9 +413,17 @@ impl App {
     }
 
     pub fn new_world(&mut self) {
+        self.new_game_probe_pending = true;
+        crate::logging::new_game_probe(format_args!("app.new_world begin"));
         if let Err(e) = self.world.initialize(self.args.generate_local_world) {
             panic!("Failed to initialize world: {e}");
         }
+        crate::logging::new_game_probe(format_args!(
+            "app.new_world done planets={} teams={} players={}",
+            self.world.planets.len(),
+            self.world.teams.len(),
+            self.world.players.len()
+        ));
     }
 
     pub fn continue_game(&mut self) {
@@ -499,6 +535,12 @@ impl App {
     }
 
     fn handle_world_slow_tick_events(&mut self, current_tick: Tick) {
+        let probe = self.new_game_probe_pending;
+        if probe {
+            crate::logging::new_game_probe(format_args!(
+                "first NewTeam slow tick begin tick={current_tick}"
+            ));
+        }
         // If there was a callback, or ui was updated --> draw.
         match self.world.handle_slow_tick_events(current_tick) {
             Ok(callbacks) => {
@@ -525,8 +567,14 @@ impl App {
                     .push_popup(PopupMessage::error(format!("Tick error\n{e}")));
             }
         }
+        if probe {
+            crate::logging::new_game_probe(format_args!("first NewTeam world tick done"));
+        }
 
         self.ui.tick();
+        if probe {
+            crate::logging::new_game_probe(format_args!("first NewTeam ui update begin"));
+        }
         match self.ui.update(
             &self.world,
             #[cfg(feature = "audio")]
@@ -543,9 +591,16 @@ impl App {
                 )
             }
         }
+        if probe {
+            crate::logging::new_game_probe(format_args!("first NewTeam ui update done"));
+        }
         self.world.dirty_ui = false;
 
         if !self.world.has_own_team() {
+            if probe {
+                crate::logging::new_game_probe(format_args!("first NewTeam slow tick done"));
+                self.new_game_probe_pending = false;
+            }
             return;
         }
 

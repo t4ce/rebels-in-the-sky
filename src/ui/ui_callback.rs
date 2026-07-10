@@ -711,6 +711,10 @@ impl UiCallback {
         spaceship: Spaceship,
     ) -> AppCallback {
         Box::new(move |app: &mut App| {
+            crate::logging::multi_rt_probe(format_args!(
+                "GeneratePlayerTeam callback begin players={}",
+                players.len()
+            ));
             app.world.generate_own_team(
                 name.clone(),
                 home_planet,
@@ -719,11 +723,17 @@ impl UiCallback {
                 players.clone(),
                 spaceship.clone(),
             )?;
+            crate::logging::multi_rt_probe(format_args!(
+                "GeneratePlayerTeam world mutation done"
+            ));
             app.ui.set_state(UiState::Main);
             app.ui.push_popup(PopupMessage::Tutorial {
                 index: 0,
                 timestamp: Tick::now(),
             });
+            crate::logging::multi_rt_probe(format_args!(
+                "GeneratePlayerTeam callback done ui=Main"
+            ));
             Ok(None)
         })
     }
@@ -1553,8 +1563,11 @@ impl UiCallback {
                 Ok(None)
             }
             Self::NewGame => {
+                crate::logging::new_game_probe(format_args!("NewGame callback begin"));
                 app.ui.set_state(UiState::NewTeam);
+                crate::logging::new_game_probe(format_args!("NewGame state set to NewTeam"));
                 app.new_world();
+                crate::logging::new_game_probe(format_args!("NewGame callback done"));
                 Ok(None)
             }
             Self::ContinueGame => {
