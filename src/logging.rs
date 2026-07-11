@@ -4,6 +4,8 @@ use log::{LevelFilter, Metadata, Record};
 use alloc::string::String;
 #[cfg(any(target_os = "trueos", target_os = "zkvm"))]
 use core::fmt::Write as _;
+#[cfg(any(target_os = "trueos", target_os = "zkvm"))]
+use core::sync::atomic::{AtomicU8, Ordering};
 
 #[cfg(not(any(target_os = "trueos", target_os = "zkvm")))]
 use crate::store::store_path;
@@ -59,8 +61,9 @@ pub fn multi_rt_probe(args: core::fmt::Arguments<'_>) {
 #[cfg(any(target_os = "trueos", target_os = "zkvm"))]
 fn init_trueos(level: LevelFilter) -> Result<(), log::SetLoggerError> {
     static LOGGER: TrueosLogger = TrueosLogger;
+    TRUEOS_BASE_LEVEL.store(level_filter_rank(level), Ordering::Relaxed);
     log::set_logger(&LOGGER)?;
-    log::set_max_level(level);
+    log::set_max_level(LevelFilter::Trace);
     Ok(())
 }
 
@@ -68,9 +71,37 @@ fn init_trueos(level: LevelFilter) -> Result<(), log::SetLoggerError> {
 struct TrueosLogger;
 
 #[cfg(any(target_os = "trueos", target_os = "zkvm"))]
+static TRUEOS_BASE_LEVEL: AtomicU8 = AtomicU8::new(0);
+
+#[cfg(any(target_os = "trueos", target_os = "zkvm"))]
+const fn level_filter_rank(level: LevelFilter) -> u8 {
+    match level {
+        LevelFilter::Off => 0,
+        LevelFilter::Error => 1,
+        LevelFilter::Warn => 2,
+        LevelFilter::Info => 3,
+        LevelFilter::Debug => 4,
+        LevelFilter::Trace => 5,
+    }
+}
+
+#[cfg(any(target_os = "trueos", target_os = "zkvm"))]
+const fn level_rank(level: log::Level) -> u8 {
+    match level {
+        log::Level::Error => 1,
+        log::Level::Warn => 2,
+        log::Level::Info => 3,
+        log::Level::Debug => 4,
+        log::Level::Trace => 5,
+    }
+}
+
+#[cfg(any(target_os = "trueos", target_os = "zkvm"))]
 impl log::Log for TrueosLogger {
     fn enabled(&self, metadata: &Metadata<'_>) -> bool {
-        metadata.level() <= log::max_level()
+        level_rank(metadata.level()) <= TRUEOS_BASE_LEVEL.load(Ordering::Relaxed)
+            || (metadata.target().starts_with("rebels::network")
+                && matches!(metadata.level(), log::Level::Debug | log::Level::Trace))
     }
 
     fn log(&self, record: &Record<'_>) {
@@ -82,7 +113,7 @@ impl log::Log for TrueosLogger {
                 log::Level::Debug => trueos::logl::level::DEBUG,
                 log::Level::Trace => trueos::logl::level::TRACE,
             };
-            trueos::logl::log(level, *record.args());
+            let _ = trueos::logl::log_record(level, record.target(), *record.args());
         }
     }
 
