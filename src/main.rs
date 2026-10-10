@@ -18,7 +18,8 @@ use rebels::types::AppResult;
 #[cfg(feature = "ssh")]
 const DEFAULT_SSH_PORT: u16 = 3788;
 
-#[tokio::main(flavor = "multi_thread")]
+#[cfg_attr(any(target_os = "trueos", target_os = "zkvm"), tokio::main(flavor = "current_thread"))]
+#[cfg_attr(not(any(target_os = "trueos", target_os = "zkvm")), tokio::main(flavor = "multi_thread"))]
 async fn main() -> AppResult<()> {
     let logfile_path = store_path("rebels.log")?;
     let logfile = FileAppender::builder()

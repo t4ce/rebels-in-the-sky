@@ -19,8 +19,12 @@ pub fn start_event_handler(
     cancellation_token: CancellationToken,
 ) -> JoinHandle<()> {
     tokio::spawn(async move {
+        #[cfg(any(target_os = "trueos", target_os = "zkvm"))]
+        let _ = trueos::logl::log_record(trueos::logl::level::IMPORTANT, "apps", format_args!("rebsky input drain started"));
         let poll_interval = time::Duration::from_millis(10); // 100Hz polling
-        let no_wait = std::time::Duration::ZERO;
+        let poll_timeout = std::time::Duration::from_millis(1);
+        let mut reported_poll = false;
+        let mut reported_event = false;
         loop {
             select! {
                 _ = cancellation_token.cancelled() => {
@@ -32,9 +36,33 @@ pub fn start_event_handler(
                     // Drain all pending events to prevent scroll events from backing up the queue.
                     let mut events = vec![];
                     let mut had_error = false;
-                    while let Ok(true) = event::poll(no_wait) {
+                    loop {
+                        match event::poll(poll_timeout) {
+                            Ok(true) => {},
+                            Ok(false) => {
+                                if !reported_poll {
+                                    #[cfg(any(target_os = "trueos", target_os = "zkvm"))]
+                                    let _ = trueos::logl::log_record(trueos::logl::level::IMPORTANT, "apps", format_args!("rebsky input poll initialized"));
+                                    reported_poll = true;
+                                }
+                                break;
+                            },
+                            Err(e) => {
+                                log::error!("Failed to poll crossterm input: {e}");
+                                trueos_input_error(&e);
+                                had_error = true;
+                                break;
+                            }
+                        }
                         match event::read() {
-                            Ok(ev) => events.push(ev),
+                            Ok(ev) => {
+                                if !reported_event {
+                                    #[cfg(any(target_os = "trueos", target_os = "zkvm"))]
+                                    let _ = trueos::logl::log_record(trueos::logl::level::IMPORTANT, "apps", format_args!("rebsky input first event: {ev:?}"));
+                                    reported_event = true;
+                                }
+                                events.push(ev);
+                            },
                             Err(e) => {
                                 log::error!("Failed to read crossterm event: {e}");
                                 had_error = true;
@@ -95,4 +123,13 @@ pub fn start_event_handler(
             }
         }
     })
+}
+
+// The file logger may still be buffered while the UI is running. Mirror input
+// failures to the kernel log so a stalled terminal can be diagnosed remotely.
+fn trueos_input_error(error: &std::io::Error) {
+    #[cfg(any(target_os = "trueos", target_os = "zkvm"))]
+    let _ = trueos::logl::log_record(trueos::logl::level::IMPORTANT, "apps", format_args!("rebsky input: {error}"));
+    #[cfg(not(any(target_os = "trueos", target_os = "zkvm")))]
+    let _ = error;
 }
