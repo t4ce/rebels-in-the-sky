@@ -18,10 +18,8 @@ use rand_distr::weighted::WeightedIndex;
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use std::collections::HashSet;
-use std::{
-    collections::HashMap,
-    hash::{DefaultHasher, Hash, Hasher},
-};
+use std::collections::HashMap;
+use std::hash::{DefaultHasher, Hash, Hasher};
 use strum_macros::{Display, EnumIter};
 
 const TRADE_DELTA_SCARCITY: f32 = 3.25;

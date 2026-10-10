@@ -33,10 +33,8 @@ use image::{Rgba, RgbaImage};
 use itertools::Itertools;
 use rand::{seq::IteratorRandom, RngExt, SeedableRng};
 use rand_chacha::ChaCha8Rng;
-use std::{
-    collections::HashMap,
-    time::{Duration, Instant},
-};
+use std::collections::HashMap;
+use std::time::{Duration, Instant};
 use strum::{Display, IntoEnumIterator};
 
 #[derive(Debug, Display, Clone, Copy, PartialEq)]
@@ -500,7 +498,7 @@ impl SpaceAdventure {
                         .expect("Entity should exist.");
                     for other_id in layer_entities.iter().skip(idx + 1) {
                         let other = self.entities[layer]
-                            .get(other_id)
+                            .get(*other_id)
                             .expect("Entity should exist.");
                         callbacks.append(&mut resolve_collision_between(entity, other, deltatime)?);
                     }

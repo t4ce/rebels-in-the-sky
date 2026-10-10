@@ -23,7 +23,8 @@ use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use std::sync::LazyLock;
-use std::{collections::HashMap, ops::Not};
+use std::collections::HashMap;
+use std::ops::Not;
 use strum::{Display, EnumIter};
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]

@@ -8,13 +8,8 @@ use glam::{I16Vec2, Vec2};
 use image::{Pixel, Rgba};
 use rand::{RngExt, SeedableRng};
 use rand_chacha::ChaCha8Rng;
-use std::{
-    collections::{
-        hash_map::{Iter, Keys, Values},
-        HashMap,
-    },
-    fmt::Debug,
-};
+use std::collections::HashMap;
+use std::fmt::Debug;
 
 const SPACESHIP_COLLISION_DAMAGE: f32 = 5.0;
 
@@ -78,15 +73,15 @@ impl From<HashMap<I16Vec2, bool>> for HitBox {
 }
 
 impl HitBox {
-    pub fn iter(&self) -> Iter<'_, I16Vec2, bool> {
+    pub fn iter(&self) -> impl ExactSizeIterator<Item = (&I16Vec2, &bool)> + Clone {
         self.inner.iter()
     }
 
-    pub fn keys(&self) -> Keys<'_, I16Vec2, bool> {
+    pub fn keys(&self) -> impl ExactSizeIterator<Item = &I16Vec2> + Clone {
         self.inner.keys()
     }
 
-    pub fn values(&self) -> Values<'_, I16Vec2, bool> {
+    pub fn values(&self) -> impl ExactSizeIterator<Item = &bool> + Clone {
         self.inner.values()
     }
 

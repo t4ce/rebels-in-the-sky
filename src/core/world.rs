@@ -1913,7 +1913,7 @@ impl World {
                     for player_id in world_team
                         .player_ids
                         .iter()
-                        .filter(|id| !team.players.contains_key(id))
+                        .filter(|id| !team.players.contains_key(*id))
                     {
                         if let Some(player) = self.players.get_mut(player_id) {
                             player.add_team_satisfaction(SATISFACTION_MALUS_FOR_SITTING_OUT);

@@ -11,10 +11,8 @@ use libp2p::PeerId;
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
-use std::{
-    cmp::min,
-    collections::{HashMap, HashSet},
-};
+use std::cmp::min;
+use std::collections::{HashMap, HashSet};
 use strum::Display;
 
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]

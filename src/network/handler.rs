@@ -37,6 +37,62 @@ use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
+/// Resolve DNS multiaddrs through the platform resolver on TRUEOS, avoiding
+/// Hickory's separate I/O runtime. Preserve all transport and peer components.
+#[cfg(any(target_os = "trueos", target_os = "zkvm"))]
+async fn resolve_dial_addresses(address: &Multiaddr) -> AppResult<Vec<Multiaddr>> {
+    let mut addresses = vec![Multiaddr::empty()];
+    for protocol in address.iter() {
+        let (host, family) = match &protocol {
+            Protocol::Dns(host) => (host.as_ref(), 0),
+            Protocol::Dns4(host) => (host.as_ref(), 4),
+            Protocol::Dns6(host) => (host.as_ref(), 6),
+            Protocol::Dnsaddr(_) => {
+                return Err(anyhow!(
+                    "DNS TXT multiaddrs are not supported by the platform resolver"
+                ))
+            }
+            _ => {
+                for address in &mut addresses {
+                    address.push(protocol.clone());
+                }
+                continue;
+            }
+        };
+        let resolved =
+            tokio::time::timeout(Duration::from_secs(5), tokio::net::lookup_host((host, 0)))
+                .await??;
+        let ips = resolved
+            .map(|socket| socket.ip())
+            .filter(|ip| {
+                family == 0 || (family == 4 && ip.is_ipv4()) || (family == 6 && ip.is_ipv6())
+            })
+            .unique()
+            .collect_vec();
+        if ips.is_empty() {
+            return Err(anyhow!("No matching IP addresses for {host}"));
+        }
+        addresses = addresses
+            .into_iter()
+            .flat_map(|address| {
+                ips.iter().map(move |ip| {
+                    let protocol = match ip {
+                        std::net::IpAddr::V4(ip) => Protocol::Ip4(*ip),
+                        std::net::IpAddr::V6(ip) => Protocol::Ip6(*ip),
+                    };
+                    address.clone().with(protocol)
+                })
+            })
+            .collect();
+    }
+    Ok(addresses)
+}
+
+#[cfg(not(any(target_os = "trueos", target_os = "zkvm")))]
+async fn resolve_dial_addresses(address: &Multiaddr) -> AppResult<Vec<Multiaddr>> {
+    Ok(vec![address.clone()])
+}
+
 /// Strip /p2p/ suffix and filter out non-routable address.
 pub(crate) fn sanitize_addr(addr: &Multiaddr) -> Option<Multiaddr> {
     let clean: Multiaddr = addr
@@ -209,15 +265,17 @@ impl NetworkHandler {
         let store = kad::store::MemoryStore::new(peer_id);
         let kademlia = kad::Behaviour::with_config(peer_id, store, kad_config);
 
-        let mut swarm = libp2p::SwarmBuilder::with_existing_identity(keypair)
+        let builder = libp2p::SwarmBuilder::with_existing_identity(keypair)
             .with_tokio()
             .with_tcp(
                 tcp::Config::default(),
                 noise::Config::new,
                 yamux::Config::default,
             )?
-            .with_quic()
-            .with_dns()?
+            .with_quic();
+        #[cfg(not(any(target_os = "trueos", target_os = "zkvm")))]
+        let builder = builder.with_dns()?;
+        let mut swarm = builder
             .with_relay_client(noise::Config::new, yamux::Config::default)?
             .with_behaviour(|_keypair, relay_client| Behaviour {
                 gossipsub,
@@ -410,8 +468,15 @@ impl NetworkHandler {
                                     if is_relay_circuit(&addr) {
                                         continue;
                                     }
-                                    swarm.behaviour_mut().kademlia.add_address(peer_id, addr);
-                                    added += 1;
+                                    match resolve_dial_addresses(&addr).await {
+                                        Ok(addresses) => for address in addresses {
+                                            if let Some(address) = sanitize_addr(&address) {
+                                                swarm.behaviour_mut().kademlia.add_address(peer_id, address);
+                                                added += 1;
+                                            }
+                                        },
+                                        Err(error) => log::debug!("Cannot resolve peer address {addr}: {error}"),
+                                    }
                                 }
                                 log::debug!(
                                     "Identify from {peer_id}: added {added} routable addrs to Kademlia (from {} total)",
@@ -536,13 +601,22 @@ impl NetworkHandler {
                             }
                             SwarmCommand::Dial { address } => {
                                 log::debug!("Dialing address: {address}");
-                                // New port (see FindPeer dial): avoids EADDRINUSE.
-                                let opts = DialOpts::unknown_peer_id()
-                                    .address(address.clone())
-                                    .allocate_new_port()
-                                    .build();
-                                if let Err(e) = swarm.dial(opts) {
-                                    log::error!("Swarm dial error for {address}: {e}");
+                                let addresses = match resolve_dial_addresses(&address).await {
+                                    Ok(addresses) => addresses,
+                                    Err(error) => {
+                                        log::error!("Cannot resolve dial address {address}: {error}");
+                                        continue;
+                                    }
+                                };
+                                for resolved_address in addresses {
+                                    // New port (see FindPeer dial): avoids EADDRINUSE.
+                                    let opts = DialOpts::unknown_peer_id()
+                                        .address(resolved_address.clone())
+                                        .allocate_new_port()
+                                        .build();
+                                    if let Err(e) = swarm.dial(opts) {
+                                        log::error!("Swarm dial error for {resolved_address}: {e}");
+                                    }
                                 }
                             }
                             SwarmCommand::FindPeer { peer_id } => {
