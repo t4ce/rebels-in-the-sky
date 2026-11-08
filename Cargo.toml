@@ -95,9 +95,16 @@ ssh = ["dep:frittura-ssh-core"]
 rayon = "1.12.0"
 
 [target.'cfg(any(target_os = "trueos", target_os = "zkvm"))'.dependencies]
+# Keep std-facing I/O types while selecting native socket IDs and readiness.
+tokio = { version = "=1.54.1", path = "../../../TRUEOS-Buildins/vendor/tokio-1.54.1", default-features = false, features = ["native-net"] }
 trueos = { path = "../../api" }
 
 [target.'cfg(not(any(target_os = "trueos", target_os = "zkvm")))'.dependencies]
 libp2p = { version = "0.56.0", features = ["dns"] }
 
 [workspace]
+
+[patch.crates-io]
+# Cargo resolves target-specific features on the host too.
+tokio = { path = "../../../TRUEOS-Buildins/vendor/tokio-1.54.1" }
+mio = { path = "../../../TRUEOS/vendor/mio-1.2.0" }
