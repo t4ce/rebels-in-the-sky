@@ -73,7 +73,7 @@ ratatui = { version = "=0.30.2", features = ["unstable-backend-writer"] }
 serde = { version = "=1.0.228", features = ["derive"] }
 serde_json = "=1.0.150"
 serde_repr = "0.1.21"
-sha2 = "0.11.0"
+sha2 = "=0.11.1"
 strum = { version = "0.28.0", features = ["derive"] }
 strum_macros = "0.28.0"
 tokio = { version = "=1.54.1", path = "../../../TRUEOS-Buildins/vendor/tokio-1.54.1", features = ["rt", "rt-multi-thread", "time", "macros", "sync", "net"] }
